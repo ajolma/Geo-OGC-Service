@@ -1,0 +1,6 @@
+Makefile.PL
+LICENSE
+MANIFEST
+README.md
+t/Geo-OGC-Service.t
+lib/Geo/OGC/Service.pm
