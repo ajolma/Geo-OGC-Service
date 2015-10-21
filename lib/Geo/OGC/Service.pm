@@ -79,9 +79,7 @@ use strict;
 use warnings;
 use Plack::Request;
 use JSON;
-
-use lib '/var/www/proj/TestApp/lib';
-use OGC::Request;
+use Geo::OGC::Request;
 
 our $VERSION = '0.01';
 
@@ -159,10 +157,7 @@ sub respond {
         }
     }
     unless ($config) {
-        my $writer = $responder->([200, [ 'Content-Type' => 'text/html',
-                                          'Content-Encoding' => 'UTF-8' ]]);
-        $writer->write('<html>Configuration error.</html>');
-        $writer->close;
+        error($responder, 'Configuration error.');
     } elsif ($env->{REQUEST_METHOD} eq 'OPTIONS') {
         my %cors = ( 
             'Content-Type' => 'text/plain',
@@ -184,9 +179,31 @@ sub respond {
         }
         $responder->([200, [%cors]]);
     } else {
-        my $ogc_req = OGC::Request->new($req, $config);
-        $ogc_req->process_request($responder, $config);
+        my $ogc_req;
+        eval {
+            $ogc_req = Geo::OGC::Request->new($responder, $req, $config);
+        };
+        if ($@) {
+            print STDERR "$@";
+            error($responder, "Error in interpreting the request.");
+        } elsif ($ogc_req) {
+            eval {
+                $ogc_req->process_request($responder);
+            };
+            if ($@) {
+                print STDERR "$@";
+                error($responder, "Error in processing the request.");
+            }
+        }
     }
+}
+
+sub error {
+    my ($responder, $msg) = @_;
+    my $writer = $responder->([200, [ 'Content-Type' => 'text/plain',
+                                      'Content-Encoding' => 'UTF-8' ]]);
+    $writer->write($msg);
+    $writer->close;
 }
 
 1;
