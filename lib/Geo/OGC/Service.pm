@@ -6,12 +6,18 @@ Geo::OGC::Service - Perl extension for geospatial web services
 
 =head1 SYNOPSIS
 
-Put this into your service.psgi file:
+In a service.psgi file write something like this
 
   use strict;
   use warnings;
   use Geo::OGC::Service;
-  my $app = OGC::Service->psgi_app('MyService');
+  my $app = Geo::OGC::Service->psgi_app(
+    '/var/www/etc/dispatch', 
+    'TestApp',
+    {
+        'WFS' => 'Geo::OGC::Service::WFS',
+    }
+    );
   $app;
 
 =head1 DESCRIPTION
@@ -38,18 +44,18 @@ Setting up a PSGI service consists typically of three things:
     ProxyPassReverse http://localhost:5000/
   </Location>
 
-Setting up a geospatial web service configuration requires a file
+Setting up a geospatial web service configuration requires a
+configuration table file, for example
 
 /var/www/etc/dispatch 
 
 (make sure this file is not served by apache)
 
-The dispatch file should consist of lines each with two items,
-separated by a tabulator. The first item should be the string that is
-the parameter to psgi_app above (MyService in this case). The second
-item should be a path to a file which contains the configuration for
-the service. The configuration must be in JSON format. I.e., something
-like
+The dispatch file should consist of lines with two items separated by
+a tab. The first item should be the string that is the parameter to
+psgi_app above (MyService in this case). The second item should be a
+path to a file which contains the configuration for the service. The
+configuration must be in JSON format. I.e., something like
 
   {
     "CORS": "*",
@@ -58,11 +64,11 @@ like
     "TARGET_NAMESPACE": "http://ogr.maptools.org/"
   }
 
-The keys etc. of this file depends on the type of the service you are
-setting up. "CORS" and "debug" are the only ones that are recognized
-by this module. "CORS" is either a string denoting the allowed origin
-or a hash of "Allow-Origin", "Allow-Methods", "Allow-Headers", and
-"Max-Age".
+The keys and structure of this file depend on the type of the service
+you are setting up. "CORS" and "debug" are the only ones that are
+recognized by this module. "CORS" is either a string denoting the
+allowed origin or a hash of "Allow-Origin", "Allow-Methods",
+"Allow-Headers", and "Max-Age".
 
 =head2 EXPORT
 
@@ -79,7 +85,8 @@ use strict;
 use warnings;
 use Plack::Request;
 use JSON;
-use Geo::OGC::Request;
+use XML::LibXML;
+use Clone 'clone';
 
 our $VERSION = '0.01';
 
@@ -87,12 +94,24 @@ our $VERSION = '0.01';
 
 =head3 psgi_app
 
-This is the psgi app boot method. It is called by Plack.
+This is the psgi app boot method. You need to call it in the psgi
+file as a class method. The parameters are
+
+  configuration_table, service_name, services
+
+configuration_table is a path to a file of pairs of service names and
+service configuration.
+
+service_name is the name of this service and a key in the
+configuration_table.
+
+services is a reference to a hash of OGC service names associated with
+names of classes, which should process those service requests.
 
 =cut
 
 sub psgi_app {
-    my ($class, $service_name) = @_;
+    my ($class, $configuration_table, $service_name, $services) = @_;
     return sub {
         my $env = shift;
         if (! $env->{'psgi.streaming'}) { # after Lyra-Core/lib/Lyra/Trait/Async/PsgiApp.pm
@@ -100,7 +119,7 @@ sub psgi_app {
         }
         return sub {
             my $responder = shift;
-            respond($responder, $env, $service_name);
+            respond($responder, $env, $configuration_table, $service_name, $services);
         }
     }
 }
@@ -109,10 +128,10 @@ sub psgi_app {
 
 =head3 respond
 
-This is the respond method that is called for each request from the
-Internet by Plack. This method reads and decodes the configuration
-file or fails with a "Configuration error" message. If the request is
-"OPTIONS" this method responds with the following headers
+This subroutine is called for each request from the Internet. The call
+is responded during the execution of the subroutine. First, the
+configuration file is read and decoded. If the request is "OPTIONS"
+the call is responded with the following headers
 
   Content-Type = text/plain
   Access-Control-Allow-Origin = ""
@@ -120,19 +139,22 @@ file or fails with a "Configuration error" message. If the request is
   Access-Control-Allow-Headers = "origin,x-requested-with,content-type"
   Access-Control-Max-Age = 60*60*24
 
-As said above, the values of Access-Control-* keys can be set in the
-configuration. The above values are the default ones.
+The values of Access-Control-* keys can be set in the
+configuration file. The above values are the default ones.
 
-In the default case this method constructs a new OGC::Request object
-and calls its process_request method.
+In the default case this method constructs a new service object and
+calls its process_request method with PSGI style $responder object as
+a parameter.
+
+This subroutine may fail due to an error in the configuration file, 
+while interpreting the request, and while processing the request.
 
 =cut
 
 sub respond {
-    my ($responder, $env, $service_name) = @_;
-    my $req = Plack::Request->new($env);
+    my ($responder, $env, $configuration_table, $service_name, $services) = @_;
     my $config;
-    if (open(my $fh, '<', '/var/www/etc/dispatch')) {
+    if (open(my $fh, '<', $configuration_table)) {
         while (<$fh>) {
             chomp;
             my @l = split /\t/;
@@ -179,16 +201,17 @@ sub respond {
         }
         $responder->([200, [%cors]]);
     } else {
-        my $ogc_req;
+        my $request = Plack::Request->new($env);
+        my $service;
         eval {
-            $ogc_req = Geo::OGC::Request->new($responder, $req, $config);
+            $service = service($responder, $request, $config, $services);
         };
         if ($@) {
             print STDERR "$@";
             error($responder, "Error in interpreting the request.");
-        } elsif ($ogc_req) {
+        } elsif ($service) {
             eval {
-                $ogc_req->process_request($responder);
+                $service->process_request($responder);
             };
             if ($@) {
                 print STDERR "$@";
@@ -198,9 +221,84 @@ sub respond {
     }
 }
 
+=pod
+
+=head3 service
+
+This subroutine does a preliminary interpretation of the request and
+converts it into a service object. The contents of the configuration
+is merged into the object.
+
+The returned service object may contain the following information
+
+  config => a clone of the configuration for this service
+  posted => XML::LibXML DOM document element of the posted data
+  filter => XML::LibXML DOM document element of the filter
+  parameters => hash of rquest parameters obtained from Plack::Request
+
+This subroutine may fail due to a request for an unknown service.
+
+=cut
+
+sub service {
+    my ($responder, $request, $config, $services) = @_;
+
+    my $parameters = $request->parameters;
+    
+    my %names;
+    for my $key (sort keys %$parameters) {
+        $names{lc($key)} = $key;
+        print STDERR "request kvp: $key => $parameters->{$key}\n" if $config->{debug} > 2;
+    }
+
+    my $self = { config => clone($config) };
+    
+    my $post = $names{postdata} // $names{'xforms:model'};
+
+    if ($post) {
+        my $parser = XML::LibXML->new(no_blanks => 1);
+        my $dom;
+        eval {
+            $dom = $parser->load_xml(string => $parameters->{$post});
+        };
+        if ($@) {
+            error($responder, "Error in posted XML:\n$@");
+            return;
+        }
+        $self->{posted} = $dom->documentElement();
+    } else {
+        for my $key (keys %names) {
+            if ($key eq 'filter' and $parameters->{$names{filter}} =~ /^</) {
+                my $filter = $parameters->{$names{filter}};
+                my $s = '<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc">';
+                $filter =~ s/<ogc:Filter>/$s/;
+                my $parser = XML::LibXML->new(no_blanks => 1);
+                my $dom;
+                eval {
+                    $dom = $parser->load_xml(string => $filter);
+                };
+                if ($@) {
+                    error($responder, "Error in XML filter:\n$@");
+                    return;
+                }
+                $self->{filter} = $dom->documentElement();
+            } else {
+                $self->{parameters}{$key} = $parameters->{$names{$key}};
+            }
+        }
+    }
+
+    my $service = $self->{parameters}{service} // '';
+    if (exists $services->{$service}) {
+        return bless $self, $services->{$service};
+    }
+
+    error($responder, "Unknown service requested: '$service'.");
+}
+
 sub error {
     my ($responder, $msg) = @_;
-    my $writer = $responder->([200, [ 'Content-Type' => 'text/plain',
+    my $writer = $responder->([500, [ 'Content-Type' => 'text/plain',
                                       'Content-Encoding' => 'UTF-8' ]]);
     $writer->write($msg);
     $writer->close;
