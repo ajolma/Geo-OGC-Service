@@ -11,6 +11,7 @@ In a service.psgi file write something like this
   use strict;
   use warnings;
   use Geo::OGC::Service;
+  use Geo::OGC::Service::WFS;
   my $app = Geo::OGC::Service->psgi_app(
     '/var/www/etc/dispatch', 
     'TestApp',
@@ -81,8 +82,7 @@ None by default.
 package Geo::OGC::Service;
 
 use 5.022000;
-use strict;
-use warnings;
+use Modern::Perl;
 use Plack::Request;
 use JSON;
 use XML::LibXML;
@@ -301,6 +301,176 @@ sub error {
     my $writer = $responder->([500, [ 'Content-Type' => 'text/plain',
                                       'Content-Encoding' => 'UTF-8' ]]);
     $writer->write($msg);
+    $writer->close;
+}
+
+=pod
+
+=head1 XMLWriter
+
+A helper class for writing XML.
+
+=head2 SYNOPSIS
+
+  my $writer = Geo::OGC::Service::XMLWriter::Caching->new();
+  $writer->open_element(
+        'wfs:WFS_Capabilities', 
+        { 'xmlns:gml' => "http://www.opengis.net/gml" });
+  $writer->element('ows:ServiceProvider',
+                     [['ows:ProviderName'],
+                      ['ows:ProviderSite', {'xlink:type'=>"simple", 'xlink:href'=>""}],
+                      ['ows:ServiceContact']]);
+  $writer->close_element;
+  $writer->stream($responder);
+
+or 
+
+  use Capture::Tiny ':all';
+  my $writer = Geo::OGC::Service::XMLWriter::Streaming->new($responder);
+  for (@a_very_very_long_list) {
+    my $stdout = capture_stdout {
+      say something;
+    };
+    $writer->write($stdout);
+  }
+
+=head2 DESCRIPTION
+
+The classes Geo::OGC::Service::XMLWriter (abstract),
+Geo::OGC::Service::XMLWriter::Streaming (concrete), and
+Geo::OGC::Service::XMLWriter::Caching (concrete) are provided as a
+convenience for writing XML to the client.
+
+The element method has the syntax
+
+  $writer->xml_element($tag[, $attributes][, $content])
+
+$attributes is a reference to a hash
+
+$content is a reference to a list of xml elements (tag...)
+
+=cut
+
+package Geo::OGC::Service::XMLWriter;
+use Modern::Perl;
+
+sub element {
+    my $self = shift;
+    my $element = shift;
+    my $attributes;
+    my $content;
+    for my $x (@_) {
+        $attributes = $x, next if ref($x) eq 'HASH';
+        $content = $x;
+    }
+    if (defined $content && $content eq '/>') {
+        $self->write("</$element>");
+        return;
+    }
+    $self->write("<$element");
+    if ($attributes) {
+        for my $a (keys %$attributes) {
+            $self->write(" $a=\"$attributes->{$a}\"");
+        }
+    }
+    unless (defined $content) {
+        $self->write(" />");
+    } else {
+        $self->write(">");
+        if (ref $content) {
+            if (ref $content->[0]) {
+                for my $e (@$content) {
+                    $self->element(@$e);
+                }
+            } else {
+                $self->element(@$content);
+            }
+            $self->write("</$element>");
+        } elsif ($content eq '>') {
+        } else {
+            $self->write("$content</$element>");
+        }
+    }
+}
+
+sub open_element {
+    my $self = shift;
+    my $element = shift;
+    my $attributes;
+    for my $x (@_) {
+        $attributes = $x, next if ref($x) eq 'HASH';
+    }
+    $self->write("<$element");
+    if ($attributes) {
+        for my $a (keys %$attributes) {
+            $self->write(" $a=\"$attributes->{$a}\"");
+        }
+    }
+    $self->write(">");
+    $self->{open_element} = [] unless $self->{open_element};
+    push @{$self->{open_element}}, $element;
+}
+
+sub close_element {
+    my $self = shift;
+    my $element = pop @{$self->{open_element}};
+    $self->write("</$element>");
+}
+
+package Geo::OGC::Service::XMLWriter::Streaming;
+use Modern::Perl;
+
+our @ISA = qw(Geo::OGC::Service::XMLWriter Plack::Util::Prototype); # can't use parent since Plack is not yet
+
+sub new {
+    my ($class, $responder, $content_type) = @_;
+    $content_type //= 'text/xml';
+    my $self = $responder->([200, [ 'Content-Type' => $content_type,
+                                    'Content-Encoding' => 'UTF-8' ]]);
+    return bless $self, $class;
+}
+
+sub prolog {
+    my $self = shift;
+    $self->write('<?xml version="1.0" encoding="UTF-8"?>');
+}
+
+sub DESTROY {
+    my $self = shift;
+    $self->close;
+}
+
+package Geo::OGC::Service::XMLWriter::Caching;
+use Modern::Perl;
+
+our @ISA = qw(Geo::OGC::Service::XMLWriter);
+
+sub new {
+    my ($class, $content_type) = @_;
+    $content_type //= 'text/xml';
+    my $self = {
+        cache => [],
+        content_type => $content_type
+    };
+    $self->{cache} = [];
+    return bless $self, $class;
+}
+
+sub write {
+    my $self = shift;
+    my $line = shift;
+    push @{$self->{cache}}, $line;
+}
+
+sub stream {
+    my $self = shift;
+    my $responder = shift;
+    my $writer = $responder->([200, [ 'Content-Type' => $self->{content_type},
+                                      'Content-Encoding' => 'UTF-8' ]]);
+    $writer->write('<?xml version="1.0" encoding="UTF-8"?>');
+    for my $line (@{$self->{cache}}) {
+        $writer->write($line);
+    }
     $writer->close;
 }
 

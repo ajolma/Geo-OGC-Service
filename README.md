@@ -16,7 +16,7 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-JSON, Plack::Request, OGC::Request
+JSON, Plack::Request, XML::LibXML, Clone
 
 COPYRIGHT AND LICENCE
 
