@@ -16,10 +16,21 @@ In a service.psgi file write something like this
     '/var/www/etc/dispatch', 
     'TestApp',
     {
-        'WFS' => 'Geo::OGC::Service::WFS',
+        'test' => 'Geo::OGC::Service::Test',
     }
     );
   $app;
+
+The bones of a service class are
+
+  package Geo::OGC::Service::Test;
+  sub process_request {
+    my ($self, $responder) = @_;
+    my $writer = $responder->([200, [ 'Content-Type' => 'text/plain',
+                                      'Content-Encoding' => 'UTF-8' ]]);
+    $writer->write("I'm ok!");
+    $writer->close;
+  }
 
 =head1 DESCRIPTION
 
@@ -486,6 +497,10 @@ L<https://list.hut.fi/mailman/listinfo/geo-perl>
 For PSGI/Plack see 
 
 L<http://plackperl.org/>
+
+=head1 REPOSITORY
+
+L<https://github.com/ajolma/Geo-OGC-Service>
 
 =head1 AUTHOR
 
