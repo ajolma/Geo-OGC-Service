@@ -172,22 +172,29 @@ sub respond {
             $config = $l[1] if $l[0] and $l[0] eq $service_name;
         }
         close $fh;
-        if ($config && open(my $fh, '<', $config)) {
-            my @json = <$fh>;
-            close $fh;
-            eval {
-                $config = decode_json "@json";
-            };
-            unless ($@) {
-                $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
-                $config->{debug} = 0 unless defined $config->{debug};
+        if ($config) {
+            if (open(my $fh, '<', $config)) {
+                my @json = <$fh>;
+                close $fh;
+                eval {
+                    $config = decode_json "@json";
+                };
+                unless ($@) {
+                    $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
+                    $config->{debug} = 0 unless defined $config->{debug};
+                } else {
+                    print STDERR "$@";
+                    undef $config;
+                }
             } else {
-                print STDERR "$@";
+                print STDERR "Can't open: '$config': $!\n";
                 undef $config;
             }
         } else {
-            undef $config;
+            print STDERR "'$service_name' not in $configuration_table.\n";
         }
+    } else {
+        print STDERR "Can't open: '$configuration_table': $!\n";
     }
     unless ($config) {
         error($responder, 'Configuration error.');
