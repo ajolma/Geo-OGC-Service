@@ -71,7 +71,7 @@ configuration must be in JSON format. I.e., something like
 
   {
     "CORS": "*",
-    "MIME": "text/xml",
+    "Content-Type": "text/xml",
     "version": "1.1.0",
     "TARGET_NAMESPACE": "http://ogr.maptools.org/"
   }
