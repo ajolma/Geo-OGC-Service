@@ -18,7 +18,9 @@ BEGIN { use_ok('Geo::OGC::Service') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 
-my $app = Geo::OGC::Service->psgi_app('no configuration file', 'TestApp', {});
+close(STDERR); # hide Geo::OGC::Service logging messages 
+
+my $app = Geo::OGC::Service->psgi_app({ config => 'cannot open this', services => {} });
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -26,10 +28,10 @@ test_psgi $app, sub {
     is $res->content, "Configuration error.";
 };
 
-my $dispatch = $0;
-$dispatch =~ s/\.t$/.dispatch/;
+my $config = $0;
+$config =~ s/\.t$/.conf/;
 
-$app = Geo::OGC::Service->psgi_app($dispatch, 'TestApp', {});
+$app = Geo::OGC::Service->psgi_app({ config => $config, services => {} });
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -48,7 +50,7 @@ test_psgi $app, sub {
     }
 }
 
-$app = Geo::OGC::Service->psgi_app($dispatch, 'TestApp', { test => 'Geo::OGC::Service::Test' });
+$app = Geo::OGC::Service->psgi_app({ config => $config, services => { test => 'Geo::OGC::Service::Test' }});
 
 test_psgi $app, sub {
     my $cb = shift;

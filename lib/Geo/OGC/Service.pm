@@ -13,10 +13,9 @@ In a service.psgi file write something like this
   use Geo::OGC::Service;
   use Geo::OGC::Service::WFS;
   my $app = Geo::OGC::Service->psgi_app(
-    '/var/www/etc/dispatch', 
-    'TestApp',
-    {
-        'test' => 'Geo::OGC::Service::Test',
+    config => '/var/www/etc/test.conf',
+    services => {
+        test => 'Geo::OGC::Service::Test',
     }
     );
   $app;
@@ -57,17 +56,13 @@ Setting up a PSGI service consists typically of three things:
   </Location>
 
 Setting up a geospatial web service configuration requires a
-configuration table file, for example
+configuration file, for example
 
-/var/www/etc/dispatch 
+/var/www/etc/test.conf
 
 (make sure this file is not served by apache)
 
-The dispatch file should consist of lines with two items separated by
-a tab. The first item should be the string that is the parameter to
-psgi_app above (MyService in this case). The second item should be a
-path to a file which contains the configuration for the service. The
-configuration must be in JSON format. I.e., something like
+The configuration must be in JSON format. I.e., something like
 
   {
     "CORS": "*",
@@ -99,30 +94,27 @@ use JSON;
 use XML::LibXML;
 use Clone 'clone';
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =pod
 
 =head3 psgi_app
 
-This is the psgi app boot method. You need to call it in the psgi
-file as a class method. The parameters are
+This is the psgi app boot method. You need to call it in the psgi file
+as a class method with a named parameter hash reference. The
+parameters are
 
-  configuration_table, service_name, services
+  configuration, services
 
-configuration_table is a path to a file of pairs of service names and
-service configuration.
+configuration is a path to a file.
 
-service_name is the name of this service and a key in the
-configuration_table.
-
-services is a reference to a hash of OGC service names associated with
-names of classes, which should process those service requests.
+services is a reference to a hash of service names associated with
+names of classes, which will process those service requests.
 
 =cut
 
 sub psgi_app {
-    my ($class, $configuration_table, $service_name, $services) = @_;
+    my ($class, $parameters) = @_;
     return sub {
         my $env = shift;
         if (! $env->{'psgi.streaming'}) { # after Lyra-Core/lib/Lyra/Trait/Async/PsgiApp.pm
@@ -130,7 +122,7 @@ sub psgi_app {
         }
         return sub {
             my $responder = shift;
-            respond($responder, $env, $configuration_table, $service_name, $services);
+            respond($responder, $env, $parameters->{config}, $parameters->{services});
         }
     }
 }
@@ -151,50 +143,35 @@ the call is responded with the following headers
   Access-Control-Max-Age = 60*60*24
 
 The values of Access-Control-* keys can be set in the
-configuration file. The above values are the default ones.
+configuration file. Above are the default ones.
 
 In the default case this method constructs a new service object and
 calls its process_request method with PSGI style $responder object as
 a parameter.
 
 This subroutine may fail due to an error in the configuration file, 
-while interpreting the request, and while processing the request.
+while interpreting the request, or while processing the request.
 
 =cut
 
 sub respond {
-    my ($responder, $env, $configuration_table, $service_name, $services) = @_;
-    my $config;
-    if (open(my $fh, '<', $configuration_table)) {
-        while (<$fh>) {
-            chomp;
-            my @l = split /\t/;
-            $config = $l[1] if $l[0] and $l[0] eq $service_name;
-        }
+    my ($responder, $env, $config, $services) = @_;
+    if (open(my $fh, '<', $config)) {
+        my @json = <$fh>;
         close $fh;
-        if ($config) {
-            if (open(my $fh, '<', $config)) {
-                my @json = <$fh>;
-                close $fh;
-                eval {
-                    $config = decode_json "@json";
-                };
-                unless ($@) {
-                    $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
-                    $config->{debug} = 0 unless defined $config->{debug};
-                } else {
-                    print STDERR "$@";
-                    undef $config;
-                }
-            } else {
-                print STDERR "Can't open: '$config': $!\n";
-                undef $config;
-            }
+        eval {
+            $config = decode_json "@json";
+        };
+        unless ($@) {
+            $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
+            $config->{debug} = 0 unless defined $config->{debug};
         } else {
-            print STDERR "'$service_name' not in $configuration_table.\n";
+            print STDERR "$@";
+            undef $config;
         }
     } else {
-        print STDERR "Can't open: '$configuration_table': $!\n";
+        print STDERR "Can't open file '$config': $!\n";
+        undef $config;
     }
     unless ($config) {
         error($responder, 'Configuration error.');
@@ -247,9 +224,12 @@ This subroutine does a preliminary interpretation of the request and
 converts it into a service object. The contents of the configuration
 is merged into the object.
 
-The returned service object may contain the following information
+The returned service object contains
 
   config => a clone of the configuration for this service
+
+and may contain
+
   posted => XML::LibXML DOM document element of the posted data
   filter => XML::LibXML DOM document element of the filter
   parameters => hash of rquest parameters obtained from Plack::Request

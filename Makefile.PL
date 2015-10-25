@@ -5,7 +5,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Geo::OGC::Service',
     VERSION_FROM      => 'lib/Geo/OGC/Service.pm', # finds $VERSION, requires EU::MM from perl >= 5.5
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => { "Plack::Request" => 0,
+                           "JSON" => 0,
+                           "XML::LibXML" => 0,
+                           "Clone" => 0 },
+    TEST_REQUIRES     => { "Plack::Test" => 0,
+                           "HTTP::Request::Common" => 0 },
     ABSTRACT_FROM     => 'lib/Geo/OGC/Service.pm', # retrieve abstract from module
     AUTHOR            => 'Ari Jolma <ari.jolma at gmail.com>',
     LICENSE           => 'perl'

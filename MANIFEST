@@ -3,4 +3,5 @@ LICENSE
 MANIFEST
 README.md
 t/Geo-OGC-Service.t
+t/Geo-OGC-Service.conf
 lib/Geo/OGC/Service.pm
