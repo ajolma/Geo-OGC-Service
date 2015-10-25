@@ -72,10 +72,10 @@ The configuration must be in JSON format. I.e., something like
   }
 
 The keys and structure of this file depend on the type of the service
-you are setting up. "CORS" and "debug" are the only ones that are
-recognized by this module. "CORS" is either a string denoting the
-allowed origin or a hash of "Allow-Origin", "Allow-Methods",
-"Allow-Headers", and "Max-Age".
+you are setting up. "CORS" is the only one that is recognized by this
+module. "CORS" is either a string denoting the allowed origin or a
+hash of "Allow-Origin", "Allow-Methods", "Allow-Headers", and
+"Max-Age".
 
 =head2 EXPORT
 
@@ -94,7 +94,7 @@ use JSON;
 use XML::LibXML;
 use Clone 'clone';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =pod
 
@@ -174,7 +174,8 @@ sub respond {
         undef $config;
     }
     unless ($config) {
-        error($responder, 'Configuration error.');
+        error($responder, { exceptionCode => 'ResourceNotFound',
+                            ExceptionText => 'Configuration error.' } );
     } elsif ($env->{REQUEST_METHOD} eq 'OPTIONS') {
         my %cors = ( 
             'Content-Type' => 'text/plain',
@@ -196,21 +197,22 @@ sub respond {
         }
         $responder->([200, [%cors]]);
     } else {
-        my $request = Plack::Request->new($env);
         my $service;
         eval {
-            $service = service($responder, $request, $config, $services);
+            $service = service($responder, $env, $config, $services);
         };
         if ($@) {
             print STDERR "$@";
-            error($responder, "Error in interpreting the request.");
+            error($responder, { exceptionCode => 'ResourceNotFound',
+                                ExceptionText => "Internal error while interpreting the request." } );
         } elsif ($service) {
             eval {
                 $service->process_request($responder);
             };
             if ($@) {
                 print STDERR "$@";
-                error($responder, "Error in processing the request.");
+                error($responder, { exceptionCode => 'ResourceNotFound',
+                                    ExceptionText => "Internal error while processing the request." } );
             }
         }
     }
@@ -227,6 +229,7 @@ is merged into the object.
 The returned service object contains
 
   config => a clone of the configuration for this service
+  env => many values from the PSGI environment
 
 and may contain
 
@@ -239,17 +242,24 @@ This subroutine may fail due to a request for an unknown service.
 =cut
 
 sub service {
-    my ($responder, $request, $config, $services) = @_;
+    my ($responder, $env, $config, $services) = @_;
 
+    my $request = Plack::Request->new($env);
     my $parameters = $request->parameters;
     
     my %names;
     for my $key (sort keys %$parameters) {
         $names{lc($key)} = $key;
-        print STDERR "request kvp: $key => $parameters->{$key}\n" if $config->{debug} > 2;
     }
 
     my $self = { config => clone($config) };
+    for my $key (qw/SCRIPT_NAME PATH_INFO SERVER_NAME SERVER_PORT SERVER_PROTOCOL CONTENT_LENGTH CONTENT_TYPE
+                    psgi.version psgi.url_scheme psgi.multithread psgi.multiprocess psgi.run_once psgi.nonblocking psgi.streaming/) {
+        $self->{env}{$key} = $env->{$key};
+    };
+    for my $key (keys %$env) {
+        $self->{env}{$key} = $env->{$key} if $key =~ /^HTTP_/ || $key =~ /^REQUEST_/;
+    };
     
     my $post = $names{postdata} // $names{'xforms:model'};
 
@@ -260,7 +270,8 @@ sub service {
             $dom = $parser->load_xml(string => $parameters->{$post});
         };
         if ($@) {
-            error($responder, "Error in posted XML:\n$@");
+            error($responder, { exceptionCode => 'ResourceNotFound',
+                                ExceptionText => "Error in posted XML:\n$@" } );
             return;
         }
         $self->{posted} = $dom->documentElement();
@@ -276,7 +287,8 @@ sub service {
                     $dom = $parser->load_xml(string => $filter);
                 };
                 if ($@) {
-                    error($responder, "Error in XML filter:\n$@");
+                    error($responder, { exceptionCode => 'ResourceNotFound',
+                                        ExceptionText => "Error in XML filter:\n$@" } );
                     return;
                 }
                 $self->{filter} = $dom->documentElement();
@@ -291,15 +303,24 @@ sub service {
         return bless $self, $services->{$service};
     }
 
-    error($responder, "Unknown service requested: '$service'.");
+    error($responder, { exceptionCode => 'InvalidParameterValue',
+                        locator => 'service',
+                        ExceptionText => "'$service' is not a known service to this server" } );
 }
 
 sub error {
     my ($responder, $msg) = @_;
-    my $writer = $responder->([500, [ 'Content-Type' => 'text/plain',
-                                      'Content-Encoding' => 'UTF-8' ]]);
-    $writer->write($msg);
-    $writer->close;
+    my $writer = Geo::OGC::Service::XMLWriter::Caching->new('text/xml');
+    $writer->open_element('ExceptionReport', { version => "1.0" });
+    my $attributes = { exceptionCode => $msg->{exceptionCode} };
+    my $content;
+    $content = [ ExceptionText => $msg->{ExceptionText} ] if exists $msg->{ExceptionText};
+    if ($msg->{exceptionCode} eq 'MissingParameterValue') {
+        $attributes->{locator} = $msg->{locator};
+    }
+    $writer->element('Exception', $attributes, $content);
+    $writer->close_element;
+    $writer->stream($responder);
 }
 
 =pod

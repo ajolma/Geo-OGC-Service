@@ -25,7 +25,9 @@ my $app = Geo::OGC::Service->psgi_app({ config => 'cannot open this', services =
 test_psgi $app, sub {
     my $cb = shift;
     my $res = $cb->(GET "/");
-    is $res->content, "Configuration error.";
+    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="ResourceNotFound">'.
+        '<ExceptionText>Configuration error.</ExceptionText></Exception></ExceptionReport>';
 };
 
 my $config = $0;
@@ -36,7 +38,9 @@ $app = Geo::OGC::Service->psgi_app({ config => $config, services => {} });
 test_psgi $app, sub {
     my $cb = shift;
     my $res = $cb->(GET "/");
-    is $res->content, "Unknown service requested: ''.";
+    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
+        "<ExceptionText>'' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
 };
 
 {
