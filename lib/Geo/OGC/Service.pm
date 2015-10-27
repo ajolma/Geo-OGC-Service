@@ -89,12 +89,14 @@ package Geo::OGC::Service;
 
 use 5.022000;
 use Modern::Perl;
+use Encode qw(decode encode);
 use Plack::Request;
 use JSON;
 use XML::LibXML;
 use Clone 'clone';
-
 use XML::LibXML::PrettyPrint;
+
+binmode STDERR, ":utf8"; 
 
 our $VERSION = '0.03';
 
@@ -265,14 +267,15 @@ sub service {
     for my $key (keys %$env) {
         $self->{env}{$key} = $env->{$key} if $key =~ /^HTTP_/ || $key =~ /^REQUEST_/;
     };
-    
+
     my $post = $names{postdata} // $names{'xforms:model'};
+    $post = $post ? $parameters->{$post} : encode($request->content_encoding // 'UTF-8', $request->content);
 
     if ($post) {
         my $parser = XML::LibXML->new(no_blanks => 1);
         my $dom;
         eval {
-            $dom = $parser->load_xml(string => $parameters->{$post});
+            $dom = $parser->load_xml(string => $post);
         };
         if ($@) {
             error($responder, { exceptionCode => 'ResourceNotFound',
