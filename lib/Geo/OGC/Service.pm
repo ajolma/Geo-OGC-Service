@@ -94,6 +94,8 @@ use JSON;
 use XML::LibXML;
 use Clone 'clone';
 
+use XML::LibXML::PrettyPrint;
+
 our $VERSION = '0.03';
 
 =pod
@@ -237,6 +239,9 @@ and may contain
   filter => XML::LibXML DOM document element of the filter
   parameters => hash of rquest parameters obtained from Plack::Request
 
+Note: all keys in request parameters are converted to lower case in
+parameters.
+
 This subroutine may fail due to a request for an unknown service.
 
 =cut
@@ -298,7 +303,15 @@ sub service {
         }
     }
 
-    my $service = $self->{parameters}{service} // '';
+    # service may also be an attribute in the top element of posted XML
+    my $service_from_posted = sub {
+        my $node = shift;
+        return undef unless $node;
+        return $node->getAttribute('service');
+    };
+
+    my $service = $self->{parameters}{service} // $service_from_posted->($self->{posted}) // ''; 
+
     if (exists $services->{$service}) {
         return bless $self, $services->{$service};
     }
@@ -306,6 +319,7 @@ sub service {
     error($responder, { exceptionCode => 'InvalidParameterValue',
                         locator => 'service',
                         ExceptionText => "'$service' is not a known service to this server" } );
+    return undef;
 }
 
 sub error {
@@ -484,13 +498,23 @@ sub write {
 sub stream {
     my $self = shift;
     my $responder = shift;
+    my $debug = shift;
     my $writer = $responder->([200, [ 'Content-Type' => $self->{content_type},
                                       'Content-Encoding' => 'UTF-8' ]]);
     $writer->write('<?xml version="1.0" encoding="UTF-8"?>');
+    my $xml = '';
     for my $line (@{$self->{cache}}) {
         $writer->write($line);
+        $xml .= $line;
     }
     $writer->close;
+    if ($debug) {
+        my $parser = XML::LibXML->new(no_blanks => 1);
+        my $pp = XML::LibXML::PrettyPrint->new(indent_string => "  ");
+        my $dom = $parser->load_xml(string => $xml);
+        $pp->pretty_print($dom);
+        say STDERR $dom->toString;
+    }
 }
 
 1;

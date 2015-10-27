@@ -8,6 +8,7 @@ WriteMakefile(
     PREREQ_PM         => { "Plack::Request" => 0,
                            "JSON" => 0,
                            "XML::LibXML" => 0,
+                           "XML::LibXML::PrettyPrint" => 0, # for debugging
                            "Clone" => 0 },
     TEST_REQUIRES     => { "Plack::Test" => 0,
                            "HTTP::Request::Common" => 0 },
