@@ -8,7 +8,7 @@
 use utf8;
 use strict;
 use warnings;
-use Test::More tests => 6;
+use Test::More tests => 7;
 use Plack::Test;
 use HTTP::Request::Common;
 BEGIN { use_ok('Geo::OGC::Service') };
@@ -28,6 +28,16 @@ test_psgi $app, sub {
     is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
         '<ExceptionReport version="1.0"><Exception exceptionCode="ResourceNotFound">'.
         '<ExceptionText>Configuration error.</ExceptionText></Exception></ExceptionReport>';
+};
+
+$app = Geo::OGC::Service->psgi_app({ config => {}, services => {} });
+
+test_psgi $app, sub {
+    my $cb = shift;
+    my $res = $cb->(GET "/");
+    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
+        "<ExceptionText>'' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
 };
 
 my $config = $0;

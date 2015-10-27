@@ -110,7 +110,8 @@ parameters are
 
   configuration, services
 
-configuration is a path to a file.
+configuration is a path to a file or a reference to an anonymous hash
+containing the configuration.
 
 services is a reference to a hash of service names associated with
 names of classes, which will process those service requests.
@@ -160,22 +161,24 @@ while interpreting the request, or while processing the request.
 
 sub respond {
     my ($responder, $env, $config, $services) = @_;
-    if (open(my $fh, '<', $config)) {
-        my @json = <$fh>;
-        close $fh;
-        eval {
-            $config = decode_json "@json";
-        };
-        unless ($@) {
-            $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
-            $config->{debug} = 0 unless defined $config->{debug};
+    if (not ref $config) {
+        if (open(my $fh, '<', $config)) {
+            my @json = <$fh>;
+            close $fh;
+            eval {
+                $config = decode_json "@json";
+            };
+            unless ($@) {
+                $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
+                $config->{debug} = 0 unless defined $config->{debug};
+            } else {
+                print STDERR "$@";
+                undef $config;
+            }
         } else {
-            print STDERR "$@";
+            print STDERR "Can't open file '$config': $!\n";
             undef $config;
         }
-    } else {
-        print STDERR "Can't open file '$config': $!\n";
-        undef $config;
     }
     unless ($config) {
         error($responder, { exceptionCode => 'ResourceNotFound',
@@ -496,6 +499,15 @@ sub write {
     my $self = shift;
     my $line = shift;
     push @{$self->{cache}}, $line;
+}
+
+sub to_string {
+    my $self = shift;
+    my $xml = '<?xml version="1.0" encoding="UTF-8"?>';
+    for my $line (@{$self->{cache}}) {
+        $xml .= $line;
+    }
+    return $xml;
 }
 
 sub stream {
