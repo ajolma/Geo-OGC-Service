@@ -145,10 +145,26 @@ sub psgi_app {
     };
 }
 
+=pod
+
+=head3 to_enable
+
+This method returns a code reference suitable for Builder enable.
+
+=cut
+
 sub to_enable {
     my ($self) = @_;
     return sub { $self->psgi_app; };
 }
+
+=pod
+
+=head3 to_mount
+
+This method returns a code reference suitable for Builder mount.
+
+=cut
 
 sub to_mount {
     my ($self) = @_;
@@ -157,6 +173,14 @@ sub to_mount {
         $self;
     };
 }
+
+=pod
+
+=head3 run
+
+This method is called internally by the method psgi_app.
+
+=cut
 
 sub run {
     my ($self, $env) = @_;
