@@ -10,15 +10,18 @@ In a service.psgi file write something like this
 
   use strict;
   use warnings;
+  use Plack::Builder;
   use Geo::OGC::Service;
   use Geo::OGC::Service::WFS;
-  my $app = Geo::OGC::Service->psgi_app(
-    config => '/var/www/etc/test.conf',
-    services => {
-        test => 'Geo::OGC::Service::Test',
-    }
-    );
-  $app;
+  my $app = Geo::OGC::Service->new({
+      config => '/var/www/etc/test.conf',
+      services => {
+          test => 'Geo::OGC::Service::Test',
+  });
+  builder {
+      mount "/wfs" => $app->to_mount;
+      mount "/" => $defaul_app;
+  };
 
 The bones of a service class are
 
@@ -51,8 +54,8 @@ Setting up a PSGI service consists typically of three things:
 3) Add a proxy service to your apache configuration
 
   <Location /TestApp>
-    ProxyPass http://localhost:5000/ 
-    ProxyPassReverse http://localhost:5000/
+    ProxyPass http://localhost:5000
+    ProxyPassReverse http://localhost:5000
   </Location>
 
 Setting up a geospatial web service configuration requires a
@@ -91,6 +94,7 @@ use 5.022000;
 use Modern::Perl;
 use Encode qw(decode encode);
 use Plack::Request;
+use Plack::Builder;
 use JSON;
 use XML::LibXML;
 use Clone 'clone';
@@ -102,15 +106,15 @@ our $VERSION = '0.03';
 
 =pod
 
-=head3 psgi_app
+=head3 new
 
-This is the psgi app boot method. You need to call it in the psgi file
-as a class method with a named parameter hash reference. The
+This creates a new Geo::OGC::Service app. You need to call it in the
+psgi file as a class method with a named parameter hash reference. The
 parameters are
 
-  configuration, services
+  config, services
 
-configuration is a path to a file or a reference to an anonymous hash
+config is a path to a file or a reference to an anonymous hash
 containing the configuration.
 
 services is a reference to a hash of service names associated with
@@ -118,17 +122,50 @@ names of classes, which will process those service requests.
 
 =cut
 
-sub psgi_app {
+sub new {
     my ($class, $parameters) = @_;
+    my $self = { parameters => $parameters };
+    return bless $self, $class;
+}
+
+=pod
+
+=head3 psgi_app
+
+This method returns a psgi_app code reference for running this app.
+
+=cut
+
+sub psgi_app {
+    my ($self) = @_;
     return sub {
         my $env = shift;
-        if (! $env->{'psgi.streaming'}) { # after Lyra-Core/lib/Lyra/Trait/Async/PsgiApp.pm
-            return [ 500, ["Content-Type" => "text/plain"], "Internal Server Error (Server Implementation Mismatch)" ];
-        }
-        return sub {
-            my $responder = shift;
-            respond($responder, $env, $parameters->{config}, $parameters->{services});
-        }
+        my $res = $self->run($env);
+        return $res;
+    };
+}
+
+sub to_enable {
+    my ($self) = @_;
+    return sub { $self->psgi_app; };
+}
+
+sub to_mount {
+    my ($self) = @_;
+    return builder {
+        enable $self->to_enable;
+        $self;
+    };
+}
+
+sub run {
+    my ($self, $env) = @_;
+    if (! $env->{'psgi.streaming'}) { # after Lyra-Core/lib/Lyra/Trait/Async/PsgiApp.pm
+        return [ 500, ["Content-Type" => "text/plain"], ["Internal Server Error (Server Implementation Mismatch)"] ];
+    }
+    return sub {
+        my $responder = shift;
+        $self->respond($responder, $env);
     }
 }
 
@@ -160,7 +197,9 @@ while interpreting the request, or while processing the request.
 =cut
 
 sub respond {
-    my ($responder, $env, $config, $services) = @_;
+    my ($self, $responder, $env) = @_;
+    my $config = $self->{parameters}{config};
+    my $services = $self->{parameters}{services};
     if (not ref $config) {
         if (open(my $fh, '<', $config)) {
             my @json = <$fh>;

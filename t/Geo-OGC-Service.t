@@ -18,9 +18,9 @@ BEGIN { use_ok('Geo::OGC::Service') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 
-close(STDERR); # hide Geo::OGC::Service logging messages 
+#close(STDERR); # hide Geo::OGC::Service logging messages 
 
-my $app = Geo::OGC::Service->psgi_app({ config => 'cannot open this', services => {} });
+my $app = Geo::OGC::Service->new({ config => 'cannot open this', services => {} })->psgi_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -30,7 +30,7 @@ test_psgi $app, sub {
         '<ExceptionText>Configuration error.</ExceptionText></Exception></ExceptionReport>';
 };
 
-$app = Geo::OGC::Service->psgi_app({ config => {}, services => {} });
+$app = Geo::OGC::Service->new({ config => {}, services => {} })->psgi_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -43,7 +43,7 @@ test_psgi $app, sub {
 my $config = $0;
 $config =~ s/\.t$/.conf/;
 
-$app = Geo::OGC::Service->psgi_app({ config => $config, services => {} });
+$app = Geo::OGC::Service->new({ config => $config, services => {} })->psgi_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -64,7 +64,7 @@ test_psgi $app, sub {
     }
 }
 
-$app = Geo::OGC::Service->psgi_app({ config => $config, services => { test => 'Geo::OGC::Service::Test' }});
+$app = Geo::OGC::Service->new({ config => $config, services => { test => 'Geo::OGC::Service::Test' }})->psgi_app;
 
 test_psgi $app, sub {
     my $cb = shift;
