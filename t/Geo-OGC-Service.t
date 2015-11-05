@@ -20,7 +20,7 @@ BEGIN { use_ok('Geo::OGC::Service') };
 
 close(STDERR); # hide Geo::OGC::Service logging messages 
 
-my $app = Geo::OGC::Service->new({ config => 'cannot open this', services => {} })->psgi_app;
+my $app = Geo::OGC::Service->new({ config => 'cannot open this', services => {} })->to_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -30,7 +30,7 @@ test_psgi $app, sub {
         '<ExceptionText>Configuration error.</ExceptionText></Exception></ExceptionReport>';
 };
 
-$app = Geo::OGC::Service->new({ config => {}, services => {} })->psgi_app;
+$app = Geo::OGC::Service->new({ config => {}, services => {} })->to_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -43,7 +43,7 @@ test_psgi $app, sub {
 my $config = $0;
 $config =~ s/\.t$/.conf/;
 
-$app = Geo::OGC::Service->new({ config => $config, services => {} })->psgi_app;
+$app = Geo::OGC::Service->new({ config => $config, services => {} })->to_app;
 
 test_psgi $app, sub {
     my $cb = shift;
@@ -64,7 +64,7 @@ test_psgi $app, sub {
     }
 }
 
-$app = Geo::OGC::Service->new({ config => $config, services => { test => 'Geo::OGC::Service::Test' }})->psgi_app;
+$app = Geo::OGC::Service->new({ config => $config, services => { test => 'Geo::OGC::Service::Test' }})->to_app;
 
 test_psgi $app, sub {
     my $cb = shift;

@@ -13,14 +13,14 @@ In a service.psgi file write something like this
   use Plack::Builder;
   use Geo::OGC::Service;
   use Geo::OGC::Service::WFS;
-  my $app = Geo::OGC::Service->new({
+  my $server = Geo::OGC::Service->new({
       config => '/var/www/etc/test.conf',
       services => {
           test => 'Geo::OGC::Service::Test',
   });
   builder {
-      mount "/wfs" => $app->to_mount;
-      mount "/" => $defaul_app;
+      mount "/wfs" => $server->to_app;
+      mount "/" => $default_app;
   };
 
 The bones of a service class are
@@ -69,7 +69,7 @@ The configuration must be in JSON format. I.e., something like
 
   {
     "CORS": "*",
-    "Content-Type": "text/xml",
+    "Content-Type": "text/xml; charset=utf-8",
     "version": "1.1.0",
     "TARGET_NAMESPACE": "http://ogr.maptools.org/"
   }
@@ -100,6 +100,8 @@ use XML::LibXML;
 use Clone 'clone';
 use XML::LibXML::PrettyPrint;
 
+use parent qw/Plack::Component/;
+
 binmode STDERR, ":utf8"; 
 
 our $VERSION = '0.04';
@@ -124,65 +126,19 @@ names of classes, which will process those service requests.
 
 sub new {
     my ($class, $parameters) = @_;
-    my $self = { parameters => $parameters };
+    my $self = Plack::Component->new(parameters => $parameters );
     return bless $self, $class;
 }
 
 =pod
 
-=head3 psgi_app
+=head3 call
 
-This method returns a psgi_app code reference for running this app.
-
-=cut
-
-sub psgi_app {
-    my ($self) = @_;
-    return sub {
-        my $env = shift;
-        my $res = $self->run($env);
-        return $res;
-    };
-}
-
-=pod
-
-=head3 to_enable
-
-This method returns a code reference suitable for Builder enable.
+This method is called internally by the method to_app.
 
 =cut
 
-sub to_enable {
-    my ($self) = @_;
-    return sub { $self->psgi_app; };
-}
-
-=pod
-
-=head3 to_mount
-
-This method returns a code reference suitable for Builder mount.
-
-=cut
-
-sub to_mount {
-    my ($self) = @_;
-    return builder {
-        enable $self->to_enable;
-        $self;
-    };
-}
-
-=pod
-
-=head3 run
-
-This method is called internally by the method psgi_app.
-
-=cut
-
-sub run {
+sub call {
     my ($self, $env) = @_;
     if (! $env->{'psgi.streaming'}) { # after Lyra-Core/lib/Lyra/Trait/Async/PsgiApp.pm
         return [ 500, ["Content-Type" => "text/plain"], ["Internal Server Error (Server Implementation Mismatch)"] ];
@@ -408,7 +364,7 @@ sub error {
 
 =pod
 
-=head1 XMLWriter
+=head1 Geo::OGC::Service::XMLWriter
 
 A helper class for writing XML.
 
@@ -451,6 +407,11 @@ $attributes is a reference to a hash
 
 $content is a reference to a list of xml elements (tag...)
 
+Setting $tag to 1, allows writing plain content.
+
+$attribute{$key} may be undefined, in which case the attribute is not
+written at all.
+
 =cut
 
 package Geo::OGC::Service::XMLWriter;
@@ -469,10 +430,14 @@ sub element {
         $self->write("</$element>");
         return;
     }
+    if ($element =~ /^1/) {
+        $self->write($content);
+        return;
+    }
     $self->write("<$element");
     if ($attributes) {
         for my $a (keys %$attributes) {
-            $self->write(" $a=\"$attributes->{$a}\"");
+            $self->write(" $a=\"$attributes->{$a}\"") if defined $attributes->{$a};
         }
     }
     unless (defined $content) {
@@ -519,22 +484,40 @@ sub close_element {
     $self->write("</$element>");
 }
 
+=pod
+
+=head1 Geo::OGC::Service::XMLWriter::Streaming
+
+A helper class for writing XML into a stream.
+
+=head2 SYNOPSIS
+
+ my $w = Geo::OGC::Service::XMLWriter::Streaming($responder, $content_type, $declaration);
+
+Using $w as XMLWriter sets writer, which is obtained from $responder,
+to write XML. The writer is closed when $w is destroyed.
+
+$content_type and $declaration are optional. The defaults are standard
+XML.
+
+=cut
+
 package Geo::OGC::Service::XMLWriter::Streaming;
 use Modern::Perl;
 
 our @ISA = qw(Geo::OGC::Service::XMLWriter Plack::Util::Prototype); # can't use parent since Plack is not yet
 
 sub new {
-    my ($class, $responder, $content_type) = @_;
-    $content_type //= 'text/xml';
-    my $self = $responder->([200, [ 'Content-Type' => $content_type,
-                                    'Content-Encoding' => 'UTF-8' ]]);
+    my ($class, $responder, $content_type, $declaration) = @_;
+    $content_type //= 'text/xml; charset=utf-8';
+    my $self = $responder->([200, [ 'Content-Type' => $content_type ]]);
+    $self->{declaration} = $declaration //= '<?xml version="1.0" encoding="UTF-8"?>';
     return bless $self, $class;
 }
 
 sub prolog {
     my $self = shift;
-    $self->write('<?xml version="1.0" encoding="UTF-8"?>');
+    $self->write($self->{declaration});
 }
 
 sub DESTROY {
@@ -542,17 +525,36 @@ sub DESTROY {
     $self->close;
 }
 
+=pod
+
+=head1 Geo::OGC::Service::XMLWriter::Caching
+
+A helper class for writing XML into a cache.
+
+=head2 SYNOPSIS
+
+ my $w = Geo::OGC::Service::XMLWriter::Caching($content_type, $declaration);
+ $w->stream($responder);
+
+Using $w to produce XML caches the XML. The cached XML can be
+written by a writer obtained from a $responder.
+
+$content_type and $declaration are optional. The defaults are standard
+XML.
+
+=cut
+
 package Geo::OGC::Service::XMLWriter::Caching;
 use Modern::Perl;
 
 our @ISA = qw(Geo::OGC::Service::XMLWriter);
 
 sub new {
-    my ($class, $content_type) = @_;
-    $content_type //= 'text/xml';
+    my ($class, $content_type, $declaration) = @_;
     my $self = {
         cache => [],
-        content_type => $content_type
+        content_type => $content_type //= 'text/xml; charset=utf-8',
+        declaration => $declaration //= '<?xml version="1.0" encoding="UTF-8"?>'
     };
     $self->{cache} = [];
     return bless $self, $class;
@@ -566,7 +568,7 @@ sub write {
 
 sub to_string {
     my $self = shift;
-    my $xml = '<?xml version="1.0" encoding="UTF-8"?>';
+    my $xml = $self->{declaration};
     for my $line (@{$self->{cache}}) {
         $xml .= $line;
     }
@@ -577,9 +579,8 @@ sub stream {
     my $self = shift;
     my $responder = shift;
     my $debug = shift;
-    my $writer = $responder->([200, [ 'Content-Type' => $self->{content_type},
-                                      'Content-Encoding' => 'UTF-8' ]]);
-    $writer->write('<?xml version="1.0" encoding="UTF-8"?>');
+    my $writer = $responder->([200, [ 'Content-Type' => $self->{content_type} ]]);
+    $writer->write($self->{declaration});
     my $xml = '';
     for my $line (@{$self->{cache}}) {
         $writer->write($line);
