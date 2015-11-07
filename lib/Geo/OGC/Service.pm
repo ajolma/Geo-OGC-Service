@@ -90,7 +90,7 @@ None by default.
 
 package Geo::OGC::Service;
 
-use 5.022000;
+use 5.010000; # // and //=
 use Modern::Perl;
 use Encode qw(decode encode);
 use Plack::Request;
@@ -104,7 +104,7 @@ use parent qw/Plack::Component/;
 
 binmode STDERR, ":utf8"; 
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 =pod
 
