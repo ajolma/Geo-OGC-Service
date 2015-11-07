@@ -1,0 +1,24 @@
+# This is the config file for building and testing Geo::OGC::Service with Travis-ci.org
+
+language: perl
+perl:
+  - "5.10"
+
+before_install:
+  - sudo apt-get install libexpat-dev libpq-dev subversion
+
+install:
+  - cpanm -v --installdeps --notest .
+
+script: "perl Makefile.PL; .make test"
+
+branches:
+  only:
+    - master
+
+notifications:
+  recipients:
+    - ari.jolma@gmail.com
+  email:
+    on_success: change
+    on_failure: always
