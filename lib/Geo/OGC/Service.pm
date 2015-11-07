@@ -104,7 +104,7 @@ use parent qw/Plack::Component/;
 
 binmode STDERR, ":utf8"; 
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 =pod
 
