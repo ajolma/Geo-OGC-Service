@@ -90,7 +90,7 @@ None by default.
 
 package Geo::OGC::Service;
 
-use 5.010000; # // and //=
+use 5.010000; # say // and //=
 use Modern::Perl;
 use Encode qw(decode encode);
 use Plack::Request;
@@ -281,7 +281,7 @@ sub service {
         $names{lc($key)} = $key;
     }
 
-    my $self = { config => clone($config) };
+    my $self = {};
     for my $key (qw/SCRIPT_NAME PATH_INFO SERVER_NAME SERVER_PORT SERVER_PROTOCOL CONTENT_LENGTH CONTENT_TYPE
                     psgi.version psgi.url_scheme psgi.multithread psgi.multiprocess psgi.run_once psgi.nonblocking psgi.streaming/) {
         $self->{env}{$key} = $env->{$key};
@@ -338,6 +338,13 @@ sub service {
     my $service = $self->{parameters}{service} // $service_from_posted->($self->{posted}) // ''; 
 
     if (exists $services->{$service}) {
+        $self->{config} = get_config($config, $service);
+        unless ($self->{config}) {
+            error($responder, { exceptionCode => 'InvalidParameterValue',
+                                locator => 'service',
+                                ExceptionText => "'$service' is not configured in this server" } );
+            return undef;
+        }
         return bless $self, $services->{$service};
     }
 
@@ -345,6 +352,20 @@ sub service {
                         locator => 'service',
                         ExceptionText => "'$service' is not a known service to this server" } );
     return undef;
+}
+
+sub get_config {
+    my ($config, $service) = @_;
+    if (exists $config->{$service}) {
+        if (ref $config->{$service}) {
+            return $config->{$service};
+        }
+        if (ref $config->{$config->{$service}}) {
+            return $config->{$config->{$service}};
+        }
+        return undef;
+    }
+    return $config;
 }
 
 sub error {
