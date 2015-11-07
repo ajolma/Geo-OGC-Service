@@ -8,7 +8,7 @@ before_install:
   - sudo apt-get install libexpat-dev libpq-dev subversion
 
 install:
-  - cpanm -v --installdeps --notest .
+  - cpanm -v --installdeps --notest . 
 
 script: "perl Makefile.PL; .make test"
 
