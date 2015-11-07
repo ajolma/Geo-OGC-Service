@@ -10,7 +10,7 @@ before_install:
 install:
   - cpanm -v --installdeps --notest . 
 
-script: "perl Makefile.PL; .make test"
+script: "perl Makefile.PL; make test"
 
 branches:
   only:
