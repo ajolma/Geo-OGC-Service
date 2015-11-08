@@ -335,10 +335,20 @@ sub service {
         return $node->getAttribute('service');
     };
 
-    my $service = $self->{parameters}{service} // $service_from_posted->($self->{posted}) // ''; 
+    # RESTful way to define the service
+    my $service_from_script_name = sub {
+        my $env = shift;
+        my ($script_name) = $env->{SCRIPT_NAME} =~ /(\w+)$/;
+        return $script_name;
+    };
+
+    my $service = $self->{parameters}{service} // 
+        $service_from_posted->($self->{posted}) // 
+        $service_from_script_name->($env) // ''; 
 
     if (exists $services->{$service}) {
         $self->{config} = get_config($config, $service);
+        $self->{service} = $service;
         unless ($self->{config}) {
             error($responder, { exceptionCode => 'InvalidParameterValue',
                                 locator => 'service',
