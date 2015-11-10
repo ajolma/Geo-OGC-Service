@@ -393,6 +393,47 @@ sub error {
     $writer->stream($responder);
 }
 
+package Geo::OGC::Service::Common;
+use Modern::Perl;
+
+sub DescribeService {
+    my ($self, $writer) = @_;
+    $writer->element('ows:ServiceIdentification', 
+                     [['ows:Title' => $self->{config}{Title} // "Yet another $self->{service} server"],
+                      ['ows:Abstract' => $self->{config}{Abstract} // ''],
+                      ['ows:ServiceType', {codeSpace=>"OGC"}, "OGC $self->{service}"],
+                      ['ows:ServiceTypeVersion', $self->{config}{ServiceTypeVersion} // '1.0.0'],
+                      ['ows:Fees' => $self->{config}{Fees} // 'NONE'],
+                      ['ows:AccessConstraints' => $self->{config}{AccessConstraints} // 'NONE']]);
+    $writer->element('ows:ServiceProvider',
+                     [['ows:ProviderName' => $self->{config}{ProviderName} // 'Nobody in particular'],
+                      ['ows:ProviderSite', { 'xlink:type'=>"simple", 
+                                             'xlink:href' => $self->{config}{ProviderSite} // '' }],
+                      ['ows:ServiceContact' => $self->{config}{ServiceContact}]]);
+}
+
+sub Operation {
+    my ($self, $writer, $operation, $protocols, $parameters) = @_;
+    my @parameters;
+    for my $p (@$parameters) {
+        for my $n (keys %$p) {
+            my @values;
+            for my $v (@{$p->{$n}}) {
+                push @values, ['ows:Value', $v];
+            }
+            push @parameters, ['ows:Parameter', {name=>$n}, \@values];
+        }
+    }
+    my $constraint;
+    $constraint = [ 'ows:Constraint' => {name => 'GetEncoding'}, $protocols->{Get} ] if ref $protocols->{Get};
+    my @http;
+    push @http, [ 'ows:Get' => { 'xlink:type'=>'simple', 'xlink:href'=>$self->{config}{resource} }, $constraint ]
+        if $protocols->{Get};
+    push @http, [ 'ows:Post' => { 'xlink:type'=>'simple', 'xlink:href'=>$self->{config}{resource} } ]
+        if $protocols->{Post};
+    $writer->element('ows:Operation' => { name => $operation }, [['ows:DCP' =>['ows:HTTP' => \@http ]], @parameters]);
+}
+
 =pod
 
 =head1 Geo::OGC::Service::XMLWriter
