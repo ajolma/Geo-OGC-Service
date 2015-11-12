@@ -3,11 +3,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile1(
     NAME              => 'Geo::OGC::Service',
     VERSION_FROM      => 'lib/Geo/OGC/Service.pm', # finds $VERSION, requires EU::MM from perl >= 5.5
-    PREREQ_PM         => { "Modern::Perl" => 0,
+    PREREQ_PM         => { "Carp" => 0,
+                           "Modern::Perl" => 0,
                            "Plack::Request" => 0,
                            "Plack::Builder" => 0,
                            "JSON" => 0,
-                           Encode => 0,
+                           "Encode" => 0,
                            "XML::LibXML" => 0,
                            "XML::LibXML::PrettyPrint" => 0, # for debugging
                            "Clone" => 0 },

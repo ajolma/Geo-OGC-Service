@@ -12,20 +12,21 @@ In a service.psgi file write something like this
   use warnings;
   use Plack::Builder;
   use Geo::OGC::Service;
-  use Geo::OGC::Service::WFS;
+  use Geo::OGC::Service::XXX;
   my $server = Geo::OGC::Service->new({
       config => '/var/www/etc/test.conf',
       services => {
-          test => 'Geo::OGC::Service::Test',
+          XXX => 'Geo::OGC::Service::XXX',
+      }
   });
   builder {
-      mount "/wfs" => $server->to_app;
+      mount "/XXX" => $server->to_app;
       mount "/" => $default_app;
   };
 
 The bones of a service class are
 
-  package Geo::OGC::Service::Test;
+  package Geo::OGC::Service::XXX;
   sub process_request {
     my ($self, $responder) = @_;
     my $writer = $responder->([200, [ 'Content-Type' => 'text/plain',
@@ -34,10 +35,13 @@ The bones of a service class are
     $writer->close;
   }
 
+Geo::OGC::Service::WFS exists in the CPAN and Geo::OGC::Service::WMTS
+will be there real soon now.
+
 =head1 DESCRIPTION
 
-This module provides psgi_app and respond methods for booting a web
-service.
+This module provides a to_app method for booting a web service.
+Geo::OGC::Service is a subclass of Plack::Component.
 
 =head2 SERVICE CONFIGURATION
 
@@ -45,23 +49,23 @@ Setting up a PSGI service consists typically of three things:
 
 1) write a service.psgi file (see above) and put it somewhere like
 
-/var/www/service/service.psgi 
+   /var/www/service/service.psgi 
 
 2) Set up starman service and add to its init-file line something like
 
-  exec starman --daemonize --error-log /var/log/starman/log --l localhost:5000 /var/www/service/service.psgi
+   exec starman --daemonize --error-log /var/log/starman/log --l localhost:5000 /var/www/service/service.psgi
 
 3) Add a proxy service to your apache configuration
 
-  <Location /TestApp>
-    ProxyPass http://localhost:5000
-    ProxyPassReverse http://localhost:5000
-  </Location>
+   <Location /Service>
+     ProxyPass http://localhost:5000
+     ProxyPassReverse http://localhost:5000
+   </Location>
 
-Setting up a geospatial web service configuration requires a
+Setting up a geospatial web service through this module requires a
 configuration file, for example
 
-/var/www/etc/test.conf
+/var/www/etc/service.conf
 
 (make sure this file is not served by apache)
 
@@ -74,11 +78,11 @@ The configuration must be in JSON format. I.e., something like
     "TARGET_NAMESPACE": "http://ogr.maptools.org/"
   }
 
-The keys and structure of this file depend on the type of the service
-you are setting up. "CORS" is the only one that is recognized by this
-module. "CORS" is either a string denoting the allowed origin or a
-hash of "Allow-Origin", "Allow-Methods", "Allow-Headers", and
-"Max-Age".
+The keys and structure of this file depend on the type of the
+service(s) you are setting up. "CORS" is the only one that is
+recognized by this module. "CORS" is either a string denoting the
+allowed origin or a hash of "Allow-Origin", "Allow-Methods",
+"Allow-Headers", and "Max-Age".
 
 =head2 EXPORT
 
@@ -91,6 +95,7 @@ None by default.
 package Geo::OGC::Service;
 
 use 5.010000; # say // and //=
+use Carp;
 use Modern::Perl;
 use Encode qw(decode encode);
 use Plack::Request;
@@ -104,7 +109,7 @@ use parent qw/Plack::Component/;
 
 binmode STDERR, ":utf8"; 
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 =pod
 
@@ -116,17 +121,27 @@ parameters are
 
   config, services
 
-config is a path to a file or a reference to an anonymous hash
-containing the configuration.
+config is required and it is a path to a file or a reference to an
+anonymous hash containing the configuration for the services.
 
 services is a reference to a hash of service names associated with
-names of classes, which will process those service requests.
+names of classes, which will process service requests. The key of the
+hash is the requested service.
 
 =cut
 
 sub new {
     my ($class, $parameters) = @_;
-    my $self = Plack::Component->new(parameters => $parameters );
+    my $self = Plack::Component->new($parameters);
+    if (not ref $self->{config}) {
+        open my $fh, '<', $self->{config} or croak "Can't open file '$self->{config}': $!\n";
+        my @json = <$fh>;
+        close $fh;
+        $self->{config} = decode_json "@json";
+        $self->{config}{debug} = 0 unless defined $self->{config}{debug};
+    }
+    croak "A configuration file is needed." unless $self->{config};
+    croak "No services are defined." unless $self->{services};
     return bless $self, $class;
 }
 
@@ -134,7 +149,10 @@ sub new {
 
 =head3 call
 
-This method is called internally by the method to_app.
+This method is called internally by the method to_app of
+Plack::Component. The method fails unless this module
+is running in a psgi.streaming environment. Otherwise,
+it returns a subroutine, which calls the respond method.
 
 =cut
 
@@ -153,10 +171,9 @@ sub call {
 
 =head3 respond
 
-This subroutine is called for each request from the Internet. The call
-is responded during the execution of the subroutine. First, the
-configuration file is read and decoded. If the request is "OPTIONS"
-the call is responded with the following headers
+This method is called for each request from the Internet. The call is
+responded during the execution of the subroutine. If the request is
+"OPTIONS" the call is responded with the following headers
 
   Content-Type = text/plain
   Access-Control-Allow-Origin = ""
@@ -167,54 +184,30 @@ the call is responded with the following headers
 The values of Access-Control-* keys can be set in the
 configuration file. Above are the default ones.
 
-In the default case this method constructs a new service object and
-calls its process_request method with PSGI style $responder object as
-a parameter.
+In the default case this method constructs a new service object using
+the method 'service' and calls its process_request method with PSGI
+style $responder object as a parameter.
 
-This subroutine may fail due to an error in the configuration file, 
-while interpreting the request, or while processing the request.
+This subroutine may fail while interpreting the request, or while
+processing the request.
 
 =cut
 
 sub respond {
     my ($self, $responder, $env) = @_;
-    my $config = $self->{parameters}{config};
-    my $services = $self->{parameters}{services};
-    if (not ref $config) {
-        if (open(my $fh, '<', $config)) {
-            my @json = <$fh>;
-            close $fh;
-            eval {
-                $config = decode_json "@json";
-            };
-            unless ($@) {
-                $config->{CORS} = $ENV{'REMOTE_ADDR'} unless $config->{CORS};
-                $config->{debug} = 0 unless defined $config->{debug};
-            } else {
-                print STDERR "$@";
-                undef $config;
-            }
-        } else {
-            print STDERR "Can't open file '$config': $!\n";
-            undef $config;
-        }
-    }
-    unless ($config) {
-        error($responder, { exceptionCode => 'ResourceNotFound',
-                            ExceptionText => 'Configuration error.' } );
-    } elsif ($env->{REQUEST_METHOD} eq 'OPTIONS') {
+    if ($env->{REQUEST_METHOD} eq 'OPTIONS') {
         my %cors = ( 
             'Content-Type' => 'text/plain',
             'Allow-Origin' => "",
             'Allow-Methods' => "GET,POST",
             'Allow-Headers' => "origin,x-requested-with,content-type",
             'Max-Age' => 60*60*24 );
-        if (ref $config->{CORS} eq 'HASH') {
+        if (ref $self->{config}{CORS} eq 'HASH') {
             for my $key (keys %cors) {
-                $cors{$key} = $config->{CORS}{$key} // $cors{$key};
+                $cors{$key} = $self->{config}{CORS}{$key} // $cors{$key};
             }
         } else {
-            $cors{Origin} = $config->{CORS};
+            $cors{Origin} = $self->{config}{CORS};
         }
         for my $key (keys %cors) {
             next if $key =~ /^Content/;
@@ -225,7 +218,7 @@ sub respond {
     } else {
         my $service;
         eval {
-            $service = service($responder, $env, $config, $services);
+            $service = $self->service($responder, $env);
         };
         if ($@) {
             print STDERR "$@";
@@ -248,14 +241,14 @@ sub respond {
 
 =head3 service
 
-This subroutine does a preliminary interpretation of the request and
-converts it into a service object. The contents of the configuration
-is merged into the object.
+This method does a preliminary interpretation of the request and
+converts it into a service object, which is returned. The contents of
+the configuration are cloned into the service object.
 
 The returned service object contains
 
-  config => a clone of the configuration for this service
-  env => many values from the PSGI environment
+  config => a clone of the configuration for this type of service
+  env => the PSGI environment
 
 and may contain
 
@@ -266,12 +259,15 @@ and may contain
 Note: all keys in request parameters are converted to lower case in
 parameters.
 
-This subroutine may fail due to a request for an unknown service.
+This subroutine may fail due to a request for an unknown service. The
+error is reported as an XML message using OGC conventions.
 
 =cut
 
 sub service {
-    my ($responder, $env, $config, $services) = @_;
+    my ($self, $responder, $env) = @_;
+
+    my $service = { env => $env };
 
     my $request = Plack::Request->new($env);
     my $parameters = $request->parameters;
@@ -280,15 +276,6 @@ sub service {
     for my $key (sort keys %$parameters) {
         $names{lc($key)} = $key;
     }
-
-    my $self = {};
-    for my $key (qw/SCRIPT_NAME PATH_INFO SERVER_NAME SERVER_PORT SERVER_PROTOCOL CONTENT_LENGTH CONTENT_TYPE
-                    psgi.version psgi.url_scheme psgi.multithread psgi.multiprocess psgi.run_once psgi.nonblocking psgi.streaming/) {
-        $self->{env}{$key} = $env->{$key};
-    };
-    for my $key (keys %$env) {
-        $self->{env}{$key} = $env->{$key} if $key =~ /^HTTP_/ || $key =~ /^REQUEST_/;
-    };
 
     my $post = $names{postdata} // $names{'xforms:model'};
     $post = $post ? $parameters->{$post} : encode($request->content_encoding // 'UTF-8', $request->content);
@@ -304,7 +291,7 @@ sub service {
                                 ExceptionText => "Error in posted XML:\n$@" } );
             return;
         }
-        $self->{posted} = $dom->documentElement();
+        $service->{posted} = $dom->documentElement();
     } else {
         for my $key (keys %names) {
             if ($key eq 'filter' and $parameters->{$names{filter}} =~ /^</) {
@@ -321,9 +308,9 @@ sub service {
                                         ExceptionText => "Error in XML filter:\n$@" } );
                     return;
                 }
-                $self->{filter} = $dom->documentElement();
+                $service->{filter} = $dom->documentElement();
             } else {
-                $self->{parameters}{$key} = $parameters->{$names{$key}};
+                $service->{parameters}{$key} = $parameters->{$names{$key}};
             }
         }
     }
@@ -342,25 +329,19 @@ sub service {
         return $script_name;
     };
 
-    my $service = $self->{parameters}{service} // 
-        $service_from_posted->($self->{posted}) // 
+    my $requested_service = $parameters->{service} // 
+        $service_from_posted->($service->{posted}) // 
         $service_from_script_name->($env) // ''; 
 
-    if (exists $services->{$service}) {
-        $self->{config} = get_config($config, $service);
-        $self->{service} = $service;
-        unless ($self->{config}) {
-            error($responder, { exceptionCode => 'InvalidParameterValue',
-                                locator => 'service',
-                                ExceptionText => "'$service' is not configured in this server" } );
-            return undef;
-        }
-        return bless $self, $services->{$service};
+    if (exists $self->{services}{$requested_service}) {
+        $service->{service} = $requested_service;
+        $service->{config} = get_config($self->{config}, $requested_service);
+        return bless $service, $self->{services}{$requested_service};
     }
 
     error($responder, { exceptionCode => 'InvalidParameterValue',
                         locator => 'service',
-                        ExceptionText => "'$service' is not a known service to this server" } );
+                        ExceptionText => "'$requested_service' is not a known service to this server" } );
     return undef;
 }
 
@@ -378,9 +359,24 @@ sub get_config {
     return $config;
 }
 
+=pod
+
+=head3 error($responder, $msg)
+
+Stream an error report as an XML message of type
+
+  <?xml version="1.0" encoding="UTF-8"?>
+  <ExceptionReport>
+      <Exception exceptionCode="$msg->{exceptionCode}" locator="$msg->{locator}">
+          <ExceptionText>$msg->{ExceptionText}<ExceptionText>
+      <Exception>
+  </ExceptionReport>
+
+=cut
+
 sub error {
     my ($responder, $msg) = @_;
-    my $writer = Geo::OGC::Service::XMLWriter::Caching->new('text/xml');
+    my $writer = Geo::OGC::Service::XMLWriter::Caching->new();
     $writer->open_element('ExceptionReport', { version => "1.0" });
     my $attributes = { exceptionCode => $msg->{exceptionCode} };
     my $content;
@@ -393,8 +389,35 @@ sub error {
     $writer->stream($responder);
 }
 
+=pod
+
+=head1 Geo::OGC::Service::Common
+
+A base type for all OGC services.
+
+=head2 SYNOPSIS
+
+  $service->DescribeService($writer);
+  $service->Operation($writer, $operation, $protocols, $parameters);
+
+=head2 DESCRIPTION
+
+The class contains methods for common tasks for all services.
+
+=head2 METHODS
+
+=cut
+
 package Geo::OGC::Service::Common;
 use Modern::Perl;
+
+=pod
+
+=head3 DescribeService($writer)
+
+Create ows:ServiceIdentification and ows:ServiceProvider elements.
+
+=cut
 
 sub DescribeService {
     my ($self, $writer) = @_;
@@ -411,6 +434,15 @@ sub DescribeService {
                                              'xlink:href' => $self->{config}{ProviderSite} // '' }],
                       ['ows:ServiceContact' => $self->{config}{ServiceContact}]]);
 }
+
+=pod
+
+=head3 Operation($writer, $operation, $protocols, $parameters)
+
+Create ows:Operation element and its ows:DCP and ows:Parameter sub
+elements.
+
+=cut
 
 sub Operation {
     my ($self, $writer, $operation, $protocols, $parameters) = @_;
@@ -455,14 +487,14 @@ A helper class for writing XML.
 
 or 
 
-  use Capture::Tiny ':all';
   my $writer = Geo::OGC::Service::XMLWriter::Streaming->new($responder);
-  for (@a_very_very_long_list) {
-    my $stdout = capture_stdout {
-      say something;
-    };
-    $writer->write($stdout);
+  $writer->prolog;
+  $writer->open_element('MyXML');
+  while (a long time) {
+      $writer->element('MyElement');
   }
+  $writer->close_element;
+  # $writer is closed when it goes out of scope
 
 =head2 DESCRIPTION
 
@@ -481,8 +513,7 @@ $content is a reference to a list of xml elements (tag...)
 
 Setting $tag to 1, allows writing plain content.
 
-$attribute{$key} may be undefined, in which case the attribute is not
-written at all.
+If $attribute{$key} is undefined the attribute is not written at all.
 
 =cut
 
@@ -564,13 +595,14 @@ A helper class for writing XML into a stream.
 
 =head2 SYNOPSIS
 
- my $w = Geo::OGC::Service::XMLWriter::Streaming($responder, $content_type, $declaration);
+  my $w = Geo::OGC::Service::XMLWriter::Streaming($responder, $content_type, $declaration);
 
 Using $w as XMLWriter sets writer, which is obtained from $responder,
 to write XML. The writer is closed when $w is destroyed.
 
-$content_type and $declaration are optional. The defaults are standard
-XML.
+$content_type and $declaration are optional. The defaults are
+'text/xml; charset=utf-8' and '<?xml version="1.0"
+encoding="UTF-8"?>'.
 
 =cut
 
@@ -611,8 +643,8 @@ A helper class for writing XML into a cache.
 Using $w to produce XML caches the XML. The cached XML can be
 written by a writer obtained from a $responder.
 
-$content_type and $declaration are optional. The defaults are standard
-XML.
+$content_type and $declaration are optional. The defaults are as in
+Geo::OGC::Service::XMLWriter::Streaming.
 
 =cut
 

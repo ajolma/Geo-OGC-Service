@@ -18,17 +18,13 @@ BEGIN { use_ok('Geo::OGC::Service') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 
-close(STDERR); # hide Geo::OGC::Service logging messages 
+#close(STDERR); # hide Geo::OGC::Service logging messages 
 
-my $app = Geo::OGC::Service->new({ config => 'cannot open this', services => {} })->to_app;
-
-test_psgi $app, sub {
-    my $cb = shift;
-    my $res = $cb->(GET "/");
-    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
-        '<ExceptionReport version="1.0"><Exception exceptionCode="ResourceNotFound">'.
-        '<ExceptionText>Configuration error.</ExceptionText></Exception></ExceptionReport>';
+my $app;
+eval {
+    $app = Geo::OGC::Service->new({ config => 'cannot open this', services => {} })->to_app;
 };
+is substr($@, 0, 5), substr("Can't open file 'cannot open this'", 0, 5);
 
 $app = Geo::OGC::Service->new({ config => {}, services => {} })->to_app;
 
