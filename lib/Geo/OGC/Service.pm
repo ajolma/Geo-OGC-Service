@@ -519,6 +519,7 @@ If $attribute{$key} is undefined the attribute is not written at all.
 
 package Geo::OGC::Service::XMLWriter;
 use Modern::Perl;
+use Encode qw(decode encode is_utf8);
 
 sub element {
     my $self = shift;
@@ -540,7 +541,11 @@ sub element {
     $self->write("<$element");
     if ($attributes) {
         for my $a (keys %$attributes) {
-            $self->write(" $a=\"$attributes->{$a}\"") if defined $attributes->{$a};
+            my $attr = $attributes->{$a};
+            if (defined $attr) {
+                $attr = decode utf8 => $attr unless is_utf8($attr);
+                $self->write(" $a=\"$attr\"");
+            }
         }
     }
     unless (defined $content) {
@@ -558,6 +563,7 @@ sub element {
             $self->write("</$element>");
         } elsif ($content eq '>') {
         } else {
+            $content = decode utf8 => $content unless is_utf8($content);
             $self->write("$content</$element>");
         }
     }
@@ -573,7 +579,11 @@ sub open_element {
     $self->write("<$element");
     if ($attributes) {
         for my $a (keys %$attributes) {
-            $self->write(" $a=\"$attributes->{$a}\"");
+            my $attr = $attributes->{$a};
+            if (defined $attr) {
+                $attr = decode utf8 => $attr unless is_utf8($attr);
+                $self->write(" $a=\"$attr\"");
+            }
         }
     }
     $self->write(">");
