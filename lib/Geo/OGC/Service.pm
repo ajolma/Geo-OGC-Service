@@ -138,11 +138,66 @@ sub new {
         my @json = <$fh>;
         close $fh;
         $self->{config} = decode_json "@json";
-        $self->{config}{debug} = 0 unless defined $self->{config}{debug};
+        expand_config($self->{config});
+        $self->{config}{debug} //= 0;
     }
     croak "A configuration file is needed." unless $self->{config};
     croak "No services are defined." unless $self->{services};
     return bless $self, $class;
+}
+
+sub expand_config {
+    my $config = shift;
+    my $had_ref;
+    do {
+        $had_ref = 0;
+        for my $j (keys %$config) {
+            $had_ref += config_ref($config->{$j}, $config);
+        }
+    } while ($had_ref);
+    for my $j (keys %$config) {
+        next if $j eq 'Common';
+        next unless ref $config->{$j} eq 'HASH';
+        for my $c (keys %{$config->{Common}}) {
+            $config->{$j}{$c} //= clone($config->{Common}{$c});
+        }
+    }
+}
+
+sub config_ref {
+    my ($config, $refs) = @_;
+    my $had_ref = 0;
+    if (ref $config eq 'ARRAY') {
+        for my $j (@$config) {
+            $had_ref += config_ref($j, $refs);
+        }
+    }
+    elsif (ref $config eq 'HASH') {
+        for my $j (keys %$config) {
+            my $r = $config->{$j};
+            if (ref $r) {
+                $had_ref += config_ref($r, $refs);
+            } else {
+                if ($r =~ /^ref:/) {
+                    my $target = config_target($refs, $r);
+                    croak "config reference not found: '$r'." unless $target;
+                    $config->{$j} = clone($target);
+                    $had_ref = 1;
+                }
+            }
+        }
+    }
+    return $had_ref;
+}
+
+sub config_target {
+    my ($config, $ref) = @_;
+    my @path = split /\//, $ref;
+    shift @path;
+    if (ref $config eq 'HASH') {
+        return $config->{$path[0]};
+    }
+    return undef;
 }
 
 =pod
