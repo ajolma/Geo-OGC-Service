@@ -683,13 +683,13 @@ A helper class for writing XML into a stream.
 
 =head2 SYNOPSIS
 
-  my $w = Geo::OGC::Service::XMLWriter::Streaming($responder, $content_type, $declaration);
+  my $w = Geo::OGC::Service::XMLWriter::Streaming($responder, $headers, $declaration);
 
 Using $w as XMLWriter sets writer, which is obtained from $responder,
 to write XML. The writer is closed when $w is destroyed.
 
-$content_type and $declaration are optional. The defaults are
-'text/xml; charset=utf-8' and '<?xml version="1.0"
+$headers and $declaration are optional. The defaults are
+'Content-Type' => 'text/xml; charset=utf-8' and '<?xml version="1.0"
 encoding="UTF-8"?>'.
 
 =cut
@@ -700,9 +700,15 @@ use Modern::Perl;
 our @ISA = qw(Geo::OGC::Service::XMLWriter Plack::Util::Prototype); # can't use parent since Plack is not yet
 
 sub new {
-    my ($class, $responder, $content_type, $declaration) = @_;
-    $content_type //= 'text/xml; charset=utf-8';
-    my $self = $responder->([200, [ 'Content-Type' => $content_type ]]);
+    my ($class, $responder, $headers, $declaration) = @_;
+    my %headers;
+    if (ref $headers) {
+        %headers = @$headers;
+    } else {
+        $headers{'Content-Type'} = $headers;
+    }
+    $headers{'Content-Type'} //= 'text/xml; charset=utf-8';
+    my $self = $responder->([200, [%headers]]);
     $self->{declaration} = $declaration //= '<?xml version="1.0" encoding="UTF-8"?>';
     return bless $self, $class;
 }
@@ -725,13 +731,13 @@ A helper class for writing XML into a cache.
 
 =head2 SYNOPSIS
 
- my $w = Geo::OGC::Service::XMLWriter::Caching($content_type, $declaration);
+ my $w = Geo::OGC::Service::XMLWriter::Caching($headers, $declaration);
  $w->stream($responder);
 
 Using $w to produce XML caches the XML. The cached XML can be
 written by a writer obtained from a $responder.
 
-$content_type and $declaration are optional. The defaults are as in
+$headers and $declaration are optional. The defaults are as in
 Geo::OGC::Service::XMLWriter::Streaming.
 
 =cut
@@ -742,10 +748,17 @@ use Modern::Perl;
 our @ISA = qw(Geo::OGC::Service::XMLWriter);
 
 sub new {
-    my ($class, $content_type, $declaration) = @_;
+    my ($class, $headers, $declaration) = @_;
+    my %headers;
+    if (ref $headers) {
+        %headers = @$headers;
+    } else {
+        $headers{'Content-Type'} = $headers;
+    }
+    $headers{'Content-Type'} //= 'text/xml; charset=utf-8';
     my $self = {
         cache => [],
-        content_type => $content_type //= 'text/xml; charset=utf-8',
+        headers => \%headers,
         declaration => $declaration //= '<?xml version="1.0" encoding="UTF-8"?>'
     };
     $self->{cache} = [];
@@ -771,7 +784,7 @@ sub stream {
     my $self = shift;
     my $responder = shift;
     my $debug = shift;
-    my $writer = $responder->([200, [ 'Content-Type' => $self->{content_type} ]]);
+    my $writer = $responder->([200, [ %{$self->{headers}} ]]);
     $writer->write($self->{declaration});
     my $xml = '';
     for my $line (@{$self->{cache}}) {
