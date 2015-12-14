@@ -1,4 +1,4 @@
-Geo-OGC-Service version 0.01
+Geo-OGC-Service
 ============================
 
 A base module for building geospatial web services.
@@ -14,9 +14,7 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module requires these other modules and libraries:
-
-JSON, Plack::Request, XML::LibXML, Clone
+The dependencies are listed in Makefile.PL.
 
 COPYRIGHT AND LICENCE
 
