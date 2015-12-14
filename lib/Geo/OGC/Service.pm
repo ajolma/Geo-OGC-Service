@@ -72,10 +72,15 @@ configuration file, for example
 The configuration must be in JSON format. I.e., something like
 
   {
-    "CORS": "*",
-    "Content-Type": "text/xml; charset=utf-8",
-    "version": "1.1.0",
-    "TARGET_NAMESPACE": "http://ogr.maptools.org/"
+    Common: {
+        "CORS": "*",
+        "Content-Type": "text/xml; charset=utf-8",
+        "version": "1.1.0",
+        "TARGET_NAMESPACE": "http://ogr.maptools.org/"
+    },
+    WFS: {
+        ...WFS configuration...
+    }
   }
 
 The keys and structure of this file depend on the type of the
@@ -227,17 +232,7 @@ sub call {
 =head3 respond
 
 This method is called for each request from the Internet. The call is
-responded during the execution of the subroutine. If the request is
-"OPTIONS" the call is responded with the following headers
-
-  Content-Type = text/plain
-  Access-Control-Allow-Origin = ""
-  Access-Control-Allow-Methods = "GET,POST"
-  Access-Control-Allow-Headers = "origin,x-requested-with,content-type"
-  Access-Control-Max-Age = 60*60*24
-
-The values of Access-Control-* keys can be set in the
-configuration file. Above are the default ones.
+responded during the execution of the subroutine.
 
 In the default case this method constructs a new service object using
 the method 'service' and calls its process_request method with PSGI
@@ -251,25 +246,8 @@ processing the request.
 sub respond {
     my ($self, $responder, $env) = @_;
     if ($env->{REQUEST_METHOD} eq 'OPTIONS') {
-        my %cors = ( 
-            'Content-Type' => 'text/plain',
-            'Allow-Origin' => "",
-            'Allow-Methods' => "GET,POST",
-            'Allow-Headers' => "origin,x-requested-with,content-type",
-            'Max-Age' => 60*60*24 );
-        if (ref $self->{config}{CORS} eq 'HASH') {
-            for my $key (keys %cors) {
-                $cors{$key} = $self->{config}{CORS}{$key} // $cors{$key};
-            }
-        } else {
-            $cors{Origin} = $self->{config}{CORS};
-        }
-        for my $key (keys %cors) {
-            next if $key =~ /^Content/;
-            $cors{'Access-Control-'.$key} = $cors{$key};
-            delete $cors{$key};
-        }
-        $responder->([200, [%cors]]);
+        $responder->([200, ['Content-Type' => 'text/plain', 
+                            Geo::OGC::Service::Common::CORS($self)]]);
     } else {
         my $service;
         eval {
@@ -465,6 +443,51 @@ The class contains methods for common tasks for all services.
 
 package Geo::OGC::Service::Common;
 use Modern::Perl;
+
+=pod
+
+=head3 CORS
+
+Return the CORS headers as a list according to the configuration. CORS
+may be in the configuration as a scalar or as a hash. A scalar value
+is taken as a value for Access-Control-Allow-Origin. A hash may have
+the following keys. (Note the missing prefix Access-Control-.)
+
+      key                      default value
+  -----------------  ----------------------------------
+  Allow-Origin              
+  Allow-Credentials
+  Expose-Headers
+  Max-Age                        60*60*24
+  Allow-Methods                  GET,POST
+  Allow-Headers    origin,x-requested-with,content-type
+
+=cut
+
+sub CORS {
+    my $self = shift;
+    # default CORS response headers:
+    my %default = ( 
+        'Allow-Origin' => '',
+        'Allow-Credentials' => '',
+        'Expose-Headers' => '',
+        'Max-Age' => 60*60*24,
+        'Allow-Methods' => 'GET,POST',
+        'Allow-Headers' => 'origin,x-requested-with,content-type'
+        );
+    # where CORS is in the configuration
+    my $config = $self->{config}{Common}{CORS} // $self->{config}{CORS};
+    my @cors;
+    if (ref $config eq 'HASH') {
+        for my $key (keys %default) {
+            my $val = $config->{$key} // $default{$key};
+            push @cors, ('Access-Control-'.$key => $val);
+        }
+    } else {
+        @cors = ('Access-Control-Allow-Origin' => $config);
+    }
+    return @cors;
+}
 
 =pod
 
