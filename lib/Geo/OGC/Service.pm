@@ -524,14 +524,10 @@ elements.
 
 sub Operation {
     my ($self, $writer, $operation, $protocols, $parameters) = @_;
-    my @parameters;
+    my @p;
     for my $p (@$parameters) {
         for my $n (keys %$p) {
-            my @values;
-            for my $v (@{$p->{$n}}) {
-                push @values, ['ows:Value', $v];
-            }
-            push @parameters, ['ows:Parameter', {name=>$n}, \@values];
+            push @p, [$self->Parameter($n, $p->{$n})];
         }
     }
     my $constraint;
@@ -541,7 +537,19 @@ sub Operation {
         if $protocols->{Get};
     push @http, [ 'ows:Post' => { 'xlink:type'=>'simple', 'xlink:href'=>$self->{config}{resource} } ]
         if $protocols->{Post};
-    $writer->element('ows:Operation' => { name => $operation }, [['ows:DCP' =>['ows:HTTP' => \@http ]], @parameters]);
+    $writer->element('ows:Operation' => { name => $operation }, [['ows:DCP' => ['ows:HTTP' => \@http ]], @p]);
+}
+
+sub Parameter {
+    my ($self, $name, $values) = @_;
+    my $wrap = $values->[0] =~ /allowedvalues/i;
+    $values = $values->[1] if $wrap;
+    my @values;
+    for my $value (@$values) {
+        push @values, ['ows:Value' => $value];
+    }
+    @values = ('ows:AllowedValues' => [@values]) if $wrap;
+    return ('ows:Parameter', { name => $name }, \@values);
 }
 
 =pod
