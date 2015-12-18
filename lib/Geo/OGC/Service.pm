@@ -311,7 +311,9 @@ sub service {
     }
 
     my $post = $names{postdata} // $names{'xforms:model'};
-    $post = $post ? $parameters->{$post} : encode($request->content_encoding // 'UTF-8', $request->content);
+    $post = $post ? $parameters->{$post} : $request->content;
+    my $encoding = $request->content_encoding // 'utf8';
+    $post = decode $encoding => $post;
 
     if ($post) {
         my $parser = XML::LibXML->new(no_blanks => 1);
@@ -752,6 +754,7 @@ Geo::OGC::Service::XMLWriter::Streaming.
 
 package Geo::OGC::Service::XMLWriter::Caching;
 use Modern::Perl;
+use Encode qw(decode encode is_utf8);
 
 our @ISA = qw(Geo::OGC::Service::XMLWriter);
 
@@ -796,8 +799,8 @@ sub stream {
     $writer->write($self->{declaration});
     my $xml = '';
     for my $line (@{$self->{cache}}) {
-        $writer->write($line);
-        $xml .= $line;
+        $writer->write(encode utf8 => $line);
+        $xml .= $line if $debug;
     }
     $writer->close;
     if ($debug) {

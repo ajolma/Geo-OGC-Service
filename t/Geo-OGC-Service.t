@@ -5,13 +5,14 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use utf8;
 use strict;
 use warnings;
+use Encode qw(decode encode is_utf8);
 use Test::More tests => 7;
 use Plack::Test;
 use HTTP::Request::Common;
 BEGIN { use_ok('Geo::OGC::Service') };
+binmode STDERR, ":utf8"; 
 
 #########################
 
@@ -72,13 +73,16 @@ test_psgi $app, sub {
 test_psgi $app, sub {
     my $cb = shift;
     my $req = HTTP::Request->new(POST => "/");
-    $req->content_type('text/xml');
-    $req->content( '<?xml version="1.0" encoding="UTF-8"?>'.
-                   '<request service="åäö"></request>' );
+    $req->content_type('text/xm; charset=utf-8');
+    my $request = decode utf8 => '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<request service="åäö"></request>';
+    $req->content(encode utf8 => $request);
     my $res = $cb->($req);
-    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
+    my $expected = decode utf8 => '<?xml version="1.0" encoding="UTF-8"?>'.
         '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
         "<ExceptionText>'åäö' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
+    my $response = decode utf8 => $res->content;
+    is $response, $expected;
 };
 
 test_psgi $app, sub {
