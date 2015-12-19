@@ -410,8 +410,8 @@ Stream an error report as an XML message of type
 =cut
 
 sub error {
-    my ($responder, $msg) = @_;
-    my $writer = Geo::OGC::Service::XMLWriter::Caching->new();
+    my ($responder, $msg, $headers) = @_;
+    my $writer = Geo::OGC::Service::XMLWriter::Caching->new($headers);
     $writer->open_element('ExceptionReport', { version => "1.0" });
     my $attributes = { exceptionCode => $msg->{exceptionCode} };
     my $content;
@@ -486,7 +486,11 @@ sub CORS {
             push @cors, ('Access-Control-'.$key => $val);
         }
     } else {
-        @cors = ('Access-Control-Allow-Origin' => $config);
+        $default{'Allow-Origin'} = $config;
+        for my $key (keys %default) {
+            my $val = $default{$key};
+            push @cors, ('Access-Control-'.$key => $val);
+        }
     }
     return @cors;
 }
