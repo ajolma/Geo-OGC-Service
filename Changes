@@ -1,3 +1,8 @@
+0.10, May 24, 2016
+  * Fix several decode/encode bugs.
+  * Fix CORS headers.
+  * Separate Parameter method from Operation in Geo::OGC::Service::Common.
+
 0.09, Dec 14, 2015
   * Decode attribute values and content into UTF-8 unless they already are in XML responses
   * Support simple references to top level keys in configuration files
