@@ -114,7 +114,7 @@ use parent qw/Plack::Component/;
 
 binmode STDERR, ":utf8"; 
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 =pod
 
@@ -308,6 +308,7 @@ sub service {
     my %names;
     for my $key (sort keys %$parameters) {
         $names{lc($key)} = $key;
+        $parameters->{$key} = decode utf8 => $parameters->{$key};
     }
 
     my $post = $names{postdata} // $names{'xforms:model'};
