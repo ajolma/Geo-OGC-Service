@@ -300,7 +300,7 @@ error is reported as an XML message using OGC conventions.
 sub service {
     my ($self, $responder, $env) = @_;
 
-    my $service = { env => $env };
+    my $service = { env => $env, processor => $self->{processor} };
 
     my $request = Plack::Request->new($env);
     my $parameters = $request->parameters;
