@@ -113,18 +113,28 @@ test_psgi $app, sub {
 
 my $asked_config = 0;
 
-sub make_config {
-    my ($service, $file) = @_;
-    $asked_config = $file;
-    return {};
+{
+    package Geo::OGC::Service::TestApp;
+    sub new {
+        my ($class) = @_;
+        my $self = {};
+        return bless $self, $class;
+    }
+    sub config {
+        my ($service, $config) = @_;
+        $asked_config = $config->{foo};
+        return {};
+    }
 }
 
-$app = Geo::OGC::Service->new({ config => \&make_config,
-                                config_file => 'foo',
+my $service = Geo::OGC::Service::TestApp->new();
+
+$app = Geo::OGC::Service->new({ config => { foo => 'bar' },
+                                config_maker => $service,
                                 services => {test => 'Geo::OGC::Service::Test'} })->to_app;
 
 test_psgi $app, sub {
     my $cb = shift;
     my $res = $cb->(GET "/?service=test");
-    is $asked_config, 'foo';
+    is $asked_config, 'bar';
 };

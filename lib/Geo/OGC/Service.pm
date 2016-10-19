@@ -372,8 +372,8 @@ sub service {
     if (exists $self->{services}{$requested_service}) {
         bless $service, $self->{services}{$requested_service};
         $service->{service} = $requested_service;
-        my $config = ref $self->{config} eq 'CODE' ?
-            $self->{config}($service, $self->{config_file}) :
+        my $config = $self->{config_maker} ?
+            $self->{config_maker}->config($self->{config}) :
             $self->{config};
         $service->{config} = get_config($config, $requested_service);
         return $service;
