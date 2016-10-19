@@ -371,7 +371,10 @@ sub service {
 
     if (exists $self->{services}{$requested_service}) {
         $service->{service} = $requested_service;
-        $service->{config} = get_config($self->{config}, $requested_service);
+        my $config = ref $self->{config} eq 'CODE' ?
+            $self->{config}($self->{config_file}) :
+            $self->{config};
+        $service->{config} = get_config($config, $requested_service);
         return bless $service, $self->{services}{$requested_service};
     }
 
@@ -417,7 +420,7 @@ sub error {
     my $attributes = { exceptionCode => $msg->{exceptionCode} };
     my $content;
     $content = [ ExceptionText => $msg->{ExceptionText} ] if exists $msg->{ExceptionText};
-    if ($msg->{exceptionCode} eq 'MissingParameterValue') {
+    if (exists $msg->{locator}) {
         $attributes->{locator} = $msg->{locator};
     }
     $writer->element('Exception', $attributes, $content);

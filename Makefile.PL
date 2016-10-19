@@ -13,7 +13,8 @@ WriteMakefile1(
                            "XML::LibXML::PrettyPrint" => 0, # for debugging
                            "Clone" => 0 },
     TEST_REQUIRES     => { "Plack::Test" => 0,
-                           "HTTP::Request::Common" => 0 },
+                           "HTTP::Request::Common" => 0,
+                           "XML::SemanticDiff" => 0 },
     ABSTRACT_FROM     => 'lib/Geo/OGC/Service.pm', # retrieve abstract from module
     AUTHOR            => 'Ari Jolma <ari.jolma at gmail.com>',
     LICENSE           => 'perl',

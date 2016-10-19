@@ -7,10 +7,12 @@
 
 use strict;
 use warnings;
+use v5.10;
 use Encode qw(decode encode is_utf8);
-use Test::More tests => 7;
+use Test::More tests => 8;
 use Plack::Test;
 use HTTP::Request::Common;
+use XML::SemanticDiff;
 BEGIN { use_ok('Geo::OGC::Service') };
 binmode STDERR, ":utf8"; 
 
@@ -32,9 +34,12 @@ $app = Geo::OGC::Service->new({ config => {}, services => {} })->to_app;
 test_psgi $app, sub {
     my $cb = shift;
     my $res = $cb->(GET "/");
-    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
-        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
-        "<ExceptionText>'' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
+    my $diff = XML::SemanticDiff->new();
+    my @diff = $diff->compare(
+        $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue" locator="service">'.
+        "<ExceptionText>'' is not a known service to this server</ExceptionText></Exception></ExceptionReport>");
+    is scalar(@diff), 0;
 };
 
 my $config = $0;
@@ -45,9 +50,14 @@ $app = Geo::OGC::Service->new({ config => $config, services => {} })->to_app;
 test_psgi $app, sub {
     my $cb = shift;
     my $res = $cb->(GET "/");
-    is $res->content, '<?xml version="1.0" encoding="UTF-8"?>'.
-        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
+    my $diff = XML::SemanticDiff->new();
+    my $expected = '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue" locator="service">'.
         "<ExceptionText>'' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
+    my $got = $res->content;
+    my @diff = $diff->compare($got, $expected);
+    is scalar(@diff), 0;
+    say STDERR "expected $expected\ngot $got" if @diff;
 };
 
 {
@@ -78,11 +88,16 @@ test_psgi $app, sub {
         '<request service="åäö"></request>';
     $req->content(encode utf8 => $request);
     my $res = $cb->($req);
-    my $expected = decode utf8 => '<?xml version="1.0" encoding="UTF-8"?>'.
-        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue">'.
+    my $diff = XML::SemanticDiff->new();
+    my $expected = decode
+        utf8 => 
+        '<?xml version="1.0" encoding="UTF-8"?>'.
+        '<ExceptionReport version="1.0"><Exception exceptionCode="InvalidParameterValue" locator="service">'.
         "<ExceptionText>'åäö' is not a known service to this server</ExceptionText></Exception></ExceptionReport>";
-    my $response = decode utf8 => $res->content;
-    is $response, $expected;
+    my $got = decode utf8 => $res->content;
+    my @diff = $diff->compare($got, $expected);
+    is scalar(@diff), 0;
+    say STDERR "expected $expected\ngot $got" if @diff;
 };
 
 test_psgi $app, sub {
@@ -94,4 +109,22 @@ test_psgi $app, sub {
                    '<request service="test">åäö</request>' );
     my $res = $cb->($req);
     is $res->content, "I'm ok!";
+};
+
+my $asked_config = 0;
+
+sub make_config {
+    my $file = shift;
+    $asked_config = $file;
+    return {};
+}
+
+$app = Geo::OGC::Service->new({ config => \&make_config,
+                                config_file => 'foo',
+                                services => {test => 'Geo::OGC::Service::Test'} })->to_app;
+
+test_psgi $app, sub {
+    my $cb = shift;
+    my $res = $cb->(GET "/?service=test");
+    is $asked_config, 'foo';
 };
