@@ -370,12 +370,13 @@ sub service {
         $service_from_script_name->($env) // ''; 
 
     if (exists $self->{services}{$requested_service}) {
+        bless $service, $self->{services}{$requested_service};
         $service->{service} = $requested_service;
         my $config = ref $self->{config} eq 'CODE' ?
-            $self->{config}($self->{config_file}) :
+            $self->{config}($service, $self->{config_file}) :
             $self->{config};
         $service->{config} = get_config($config, $requested_service);
-        return bless $service, $self->{services}{$requested_service};
+        return $service;
     }
 
     error($responder, { exceptionCode => 'InvalidParameterValue',

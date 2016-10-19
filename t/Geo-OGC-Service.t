@@ -114,7 +114,7 @@ test_psgi $app, sub {
 my $asked_config = 0;
 
 sub make_config {
-    my $file = shift;
+    my ($service, $file) = @_;
     $asked_config = $file;
     return {};
 }
