@@ -246,7 +246,8 @@ processing the request.
 sub respond {
     my ($self, $responder, $env) = @_;
     if ($env->{REQUEST_METHOD} eq 'OPTIONS') {
-        $responder->([200, ['Content-Type' => 'text/plain', 
+        $responder->([200, ['Content-Length' => 0,
+                            'Content-Type' => 'text/plain', 
                             Geo::OGC::Service::Common::CORS($self)]]);
     } else {
         my $service;
