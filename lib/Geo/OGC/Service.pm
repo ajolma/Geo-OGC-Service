@@ -302,10 +302,20 @@ error is reported as an XML message using OGC conventions.
 sub service {
     my ($self, $responder, $env) = @_;
 
-    my $service = { env => $env, processor => $self->{processor} };
-
     my $request = Plack::Request->new($env);
     my $parameters = $request->parameters;
+
+    my $service = { 
+        env => $env, 
+        request => $request,
+        processor => $self->{processor} 
+        # will get below:
+        # posted
+        # filter
+        # parameters
+        # service
+        # config
+    };
     
     my %names;
     for my $key (sort keys %$parameters) {
@@ -615,10 +625,10 @@ $content]].
 
 $attributes is a reference to a hash
 
-$content is undef, '/>', plain content (string), an element (as
-above), a list of elements, or a reference to a list of elements. If
-$content is undef, a self-closing tag is written. If $content is '/>'
-a closing tag is written.
+$content is nothing, undef, '/>', plain content (string), an element
+(as above), a list of elements, or a reference to a list of
+elements. If there is no $content or $content is undef, a self-closing
+tag is written. If $content is '/>' a closing tag is written.
 
 Setting $tag to 0 or 1, allows writing plain content.
 
@@ -643,7 +653,7 @@ sub element {
     }
     my $attributes;
     $attributes = shift if @_ and ref($_[0]) eq 'HASH';
-    if (@_ and $_[0] eq '/>') {
+    if (@_ && defined($_[0]) && $_[0] eq '/>') {
         $self->write("</$tag>");
         return;
     }
@@ -661,11 +671,12 @@ sub element {
             }
         }
     }
-    unless (@_) {
+    if (@_ == 0 || !defined($_[0])) {
         $self->write(" />");
     } else {
         $self->write(">");
         for my $element (@_) {
+            next unless defined($element);
             if (ref $element eq 'ARRAY') {
                 $self->element(@$element);
                 $self->write("</$tag>");
