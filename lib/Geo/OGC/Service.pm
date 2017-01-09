@@ -679,15 +679,15 @@ sub element {
             next unless defined($element);
             if (ref $element eq 'ARRAY') {
                 $self->element(@$element);
-                $self->write("</$tag>");
             } elsif (ref $element) {
                 croak ref($element)." can't be used as an XML element.";
             } elsif ($element eq '>') {
             } else {
                 $element = decode utf8 => $element unless is_utf8($element);
-                $self->write("$element</$tag>");
+                $self->write($element);
             }
         }
+        $self->write("</$tag>");
     }
 }
 
