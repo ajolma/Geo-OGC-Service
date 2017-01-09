@@ -245,6 +245,7 @@ processing the request.
 
 sub respond {
     my ($self, $responder, $env) = @_;
+    # TODO: logging
     if ($env->{REQUEST_METHOD} eq 'OPTIONS') {
         $responder->([200, ['Content-Length' => 0,
                             'Content-Type' => 'text/plain', 
@@ -603,13 +604,23 @@ convenience for writing XML to the client.
 
 The element method has the syntax
 
-  $writer->xml_element($tag[, $attributes][, $content])
+  $writer->element($tag[, $attributes][, $content])
+
+or
+
+  $writer->element($element)
+
+where $element is a reference to an array [$tag[, $attributes][,
+$content]].
 
 $attributes is a reference to a hash
 
-$content is a reference to a list of xml elements (tag...)
+$content is undef, '/>', plain content (string), an element (as
+above), a list of elements, or a reference to a list of elements. If
+$content is undef, a self-closing tag is written. If $content is '/>'
+a closing tag is written.
 
-Setting $tag to 1, allows writing plain content.
+Setting $tag to 0 or 1, allows writing plain content.
 
 If $attribute{$key} is undefined the attribute is not written at all.
 
@@ -618,25 +629,29 @@ If $attribute{$key} is undefined the attribute is not written at all.
 package Geo::OGC::Service::XMLWriter;
 use Modern::Perl;
 use Encode qw(decode encode is_utf8);
+use Carp;
 
 sub element {
     my $self = shift;
-    my $element = shift;
+    my $tag = shift;
+    return unless defined $tag;
+    if (ref($tag) eq 'ARRAY') {
+        for my $element ($tag, @_) {
+            $self->element(@$element);
+        }
+        return;
+    }
     my $attributes;
-    my $content;
-    for my $x (@_) {
-        $attributes = $x, next if ref($x) eq 'HASH';
-        $content = $x;
-    }
-    if (defined $content && $content eq '/>') {
-        $self->write("</$element>");
+    $attributes = shift if @_ and ref($_[0]) eq 'HASH';
+    if (@_ and $_[0] eq '/>') {
+        $self->write("</$tag>");
         return;
     }
-    if ($element =~ /^1/) {
-        $self->write($content);
+    if ($tag =~ /^\d/) {
+        $self->write($_[0]);
         return;
     }
-    $self->write("<$element");
+    $self->write("<$tag");
     if ($attributes) {
         for my $a (keys %$attributes) {
             my $attr = $attributes->{$a};
@@ -646,23 +661,21 @@ sub element {
             }
         }
     }
-    unless (defined $content) {
+    unless (@_) {
         $self->write(" />");
     } else {
         $self->write(">");
-        if (ref $content) {
-            if (ref $content->[0]) {
-                for my $e (@$content) {
-                    $self->element(@$e);
-                }
+        for my $element (@_) {
+            if (ref $element eq 'ARRAY') {
+                $self->element(@$element);
+                $self->write("</$tag>");
+            } elsif (ref $element) {
+                croak ref($element)." can't be used as an XML element.";
+            } elsif ($element eq '>') {
             } else {
-                $self->element(@$content);
+                $element = decode utf8 => $element unless is_utf8($element);
+                $self->write("$element</$tag>");
             }
-            $self->write("</$element>");
-        } elsif ($content eq '>') {
-        } else {
-            $content = decode utf8 => $content unless is_utf8($content);
-            $self->write("$content</$element>");
         }
     }
 }
