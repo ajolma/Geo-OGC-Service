@@ -1,3 +1,10 @@
+0.11, Jan 26, 2017
+  * New/enhanced semantics in constructor arguments:
+  *   'processor' is an object, which is forwarded to the service object
+  *   'config_maker' is an object, which, if exists, is used to create the config for the service object
+  * Send Content-Type = 0 and CORS as a reply to an OPTIONS request
+  * Improve the element method of XMLWriter class
+
 0.10, May 24, 2016
   * Fix several decode/encode bugs.
   * Fix CORS headers.
