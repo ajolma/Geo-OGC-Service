@@ -683,8 +683,11 @@ sub element {
                 croak ref($element)." can't be used as an XML element.";
             } elsif ($element eq '>') {
             } else {
-                $element = decode utf8 => $element unless is_utf8($element);
-                $self->write($element);
+                if (is_utf8($element)) {
+                    $self->write($element);
+                } else {
+                    $self->write(decode utf8 => $element);
+                }
             }
         }
         $self->write("</$tag>");
