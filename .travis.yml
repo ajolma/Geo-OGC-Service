@@ -2,7 +2,7 @@
 
 language: perl
 perl:
-  - "5.10"
+  - "5.12"
 
 before_install:
   - sudo apt-get install libexpat-dev libpq-dev subversion
