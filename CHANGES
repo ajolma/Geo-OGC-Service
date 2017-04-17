@@ -1,0 +1,230 @@
+==================================================
+Changes from 2014-12-14 00:00:00 +0000 to present.
+==================================================
+
+  Change: 5aabe57b87b17b05feb60933d979fd953303e898
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-12-14 15:03:17 +0000
+
+    Version 0.09.
+
+  Change: 698a01f28bad16b83f49456ef879dec3d34742cb
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-12-14 10:50:07 +0000
+
+    Change (in a backwards compatible way) content-type to headers in
+    XMLWriter constructors.
+
+  Change: 3f5a6ef55de9b7fc672950e64a5c073d7f84febf
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-12-14 10:16:37 +0000
+
+    CORS method in Common.
+
+  Change: 8e46130a91fce5153685e101fe5584cbaab40bb6
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-12-04 16:30:43 +0000
+
+    Support simple references to top-level structures in configuration
+    JSON.
+
+  Change: 3ac63ea69a2410019bd7471a06af2dc8ce7f0f12
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-25 14:52:10 +0000
+
+    Decode attribute values and content into UTF-8 unless they already
+    are.
+
+  Change: 2ff8d6bd3fd8b0e8ffb50af30b5f74c5fb7f79a4
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-12 09:53:20 +0000
+
+    Moved reading configuration file to boot time. Simple copy of PSGI
+    environment into the service object. Better documentation. Version
+    0.08.
+
+  Change: c4351289a3fa55d79a05e2676389fd92a4b11aa8
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-10 14:00:30 +0000
+
+    Geo::OGC::Service::Common class with two common methods for services.
+
+  Change: 43900d5dd81d5b6102500d37c7081ea3f9e796a2
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-08 11:48:27 +0000
+
+    Makefile.PL: Compatibility code for old versions of EU::MM.
+    Service.pm: Support service in URL, needed by RESTful services.
+
+  Change: e0a65644048b771a4dc74c82a25f13f712d45b30
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 11:05:40 +0000
+
+    Fix build script.
+
+  Change: c327ec665225d0798ebebb791da35554288dfbe8
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 11:02:04 +0000
+
+    Push to test.
+
+  Change: 829b392c4709d135fde7eea6f453ba259a579501
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 11:00:54 +0000
+
+    Add .travis.yml.
+
+  Change: 1423759b76c7510cbd1b93ba504a1a8ec78579fd
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 10:58:58 +0000
+
+    Version 0.07
+
+  Change: 76be3a9752294d3092dd63790c15e34b0bdb368d
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 10:39:37 +0000
+
+    Allow more complex config files, which support multiple services.
+    Makefile.PL must have the same Perl version requirement as the module
+    itself.
+
+  Change: 6589d31f1341c73426aa981c9ada930337641564
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-07 08:49:19 +0000
+
+    Perl 5.10 required. Version 0.06.
+
+  Change: 012995f9baec6ce9c685271c33cb6db3a8435389
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-05 16:33:37 +0000
+
+    Version 0.05.
+
+  Change: 240c56c7a68f5bd823fe9dac7a9c767645b14448
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-11-05 16:18:52 +0000
+
+    Make Geo::OGC::Service a subclass of Plack::Component. Thus the
+    method to_mount is now called to_app, which is standard. Also run is
+    now call, which overrides the one in Plack::Component. Corrent
+    inclusion of utf-8 into Content-Type. Allow non-element text as
+    content in XMLWriter.
+
+  Change: eb7a4083c8a4c99e556bfbf89cc546701155a2cf
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-30 12:38:43 +0000
+
+    Some missing docs.
+
+  Change: 4ddf2cb867df45d04a6124f49b33b850300a530b
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-30 12:24:59 +0000
+
+    Version 0.04.
+
+  Change: 8baed540c6f30bf3444028141418ebdec60d6eab
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-30 12:24:02 +0000
+
+    Made this a mountable Plack::Builder app. Small change to the API.
+    Fixed an error in apache conf. New methods: new, to_enable, to_mount,
+    run.
+
+  Change: 483155acced94a7e38481867dec8e90cbfa778e5
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-28 09:24:42 +0000
+
+    Modern::Perl required.
+
+  Change: 09689eaac4d5580ca33c0ef6059b780cf8ba185b
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-27 16:07:21 +0000
+
+    Support configuration as variable. to_string method for caching XML
+    writer.
+
+  Change: a79fcd6e1657b8d87cc80616d82c233e6444ec4b
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-27 12:59:27 +0000
+
+    Obtain the post optionally from request content. Test POSTing.
+
+  Change: 680f32b8460f97107a62dda0e36c13f0a1c56924
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-27 11:09:03 +0000
+
+    XML pretty print for debugging purposes. Get requested service also
+    from posted XML. Explicitly return undef in error from service
+    method.
+
+  Change: b29959a3e3b18f401a726538a6ba632fe78840ae
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-25 10:58:47 +0000
+
+    Add env to the service object. Initial XML error messages according
+    to OGC common specs.
+
+  Change: 64edacc05f836ee4509dc1a12d6f15a21a6b2f83
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-25 08:45:25 +0000
+
+    Add requires to Makefile.PL. Silly me, need only configuration file.
+
+  Change: 14c98aa24f88e1ab35118288c283694dac5f4448
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-24 11:54:09 +0000
+
+    Better reporting on configuration errors.
+
+  Change: 47db78aef8f17e756283360ba84b74b443b3a790
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-24 11:45:25 +0000
+
+    We'll use Content-Type as the key to decide what type to use in
+    replies.
+
+  Change: 44284438c89fa3817216f1be09960e2e73fe4100
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-24 11:43:26 +0000
+
+    Describe the bones of a service class in the synopsis.
+
+  Change: 4df89aaad472cba9e81f25e93d3efea6f07633ce
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-24 11:38:06 +0000
+
+    Basic tests.
+
+  Change: 9db1c26da1402cdac364e567b456f2e896022d63
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-23 11:21:47 +0000
+
+    Added the XMLWriter.
+
+  Change: 315f99f371b82b5967e634e34f68649c246bdde6
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-22 10:23:41 +0000
+
+    Merged the service object constructor code into this.
+
+  Change: 07f468809c6fe5578641e4ce8973442d6d90c833
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-21 19:23:57 +0000
+
+    Actual Request.pm and better error handling.
+
+  Change: d8a268e436e6f9464750f03cef880455bb595313
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-21 17:03:55 +0000
+
+    Initial import.
+
+  Change: 4d569b6d7653cd7fe9c70de10c787bc1f225a571
+  Author: Ari Jolma <ari.jolma@gmail.com>
+  Date : 2015-10-21 17:00:19 +0000
+
+    Initial commit
+
+================
+End of releases.
+================
