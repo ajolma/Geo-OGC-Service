@@ -73,13 +73,41 @@ The configuration must be in JSON format. I.e., something like
 
   {
     Common: {
-        "CORS": "*",
+        "CORS": {
+                "Allow-Origin" : "*",
+                "Allow-Headers" : "Content-Type, X-Requested-With"
+        },
         "Content-Type": "text/xml; charset=utf-8",
-        "version": "1.1.0",
         "TARGET_NAMESPACE": "http://ogr.maptools.org/"
     },
     WFS: {
-        ...WFS configuration...
+        "resource": "http://$HTTP_HOST/WFS",
+        "version": "1.1.0",
+        "TARGET_NAMESPACE": "http://ogr.maptools.org/",
+        "PREFIX": "ogr",
+        "Transaction": "Insert,Update,Delete",
+        "FeatureTypeList": [
+            {
+            }
+        ]
+    },
+    "WMS": {
+        "resource": "http://$HTTP_HOST/WMS"
+    },
+    "TMS": {
+        "resource": "http://$HTTP_HOST/TMS"
+    },
+    "WMTS": {
+        "resource": "http://$HTTP_HOST/WMTS"
+    },
+    "TileSets": [
+    ],
+    "BoundingBox3857": {
+        "SRS": "EPSG:3857",
+        "minx": 2399767,
+        "miny": 8645741,
+        "maxx": 2473612,
+        "maxy": 8688005
     }
   }
 
@@ -88,6 +116,9 @@ service(s) you are setting up. "CORS" is the only one that is
 recognized by this module. "CORS" is either a string denoting the
 allowed origin or a hash of "Allow-Origin", "Allow-Methods",
 "Allow-Headers", and "Max-Age".
+
+$HTTP_HOST is replaced in runtime to the HTTP_HOST value in the
+environment given by Plack.
 
 =head2 EXPORT
 
@@ -162,6 +193,7 @@ sub expand_config {
     } while ($had_ref);
     for my $j (keys %$config) {
         next if $j eq 'Common';
+        next if $j =~ /^BoundingBox/;
         next unless ref $config->{$j} eq 'HASH';
         for my $c (keys %{$config->{Common}}) {
             $config->{$j}{$c} //= clone($config->{Common}{$c});
@@ -388,6 +420,8 @@ sub service {
             $self->{config_maker}->config($self->{config}) :
             $self->{config};
         $service->{config} = get_config($config, $requested_service);
+        my $host = $service->{env}{HTTP_HOST};
+        $service->{config}{resource} =~ s/\$HTTP_HOST/$host/ if $service->{config}{resource} && $host;
         return $service;
     }
 
