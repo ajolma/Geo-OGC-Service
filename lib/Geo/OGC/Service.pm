@@ -117,8 +117,8 @@ recognized by this module. "CORS" is either a string denoting the
 allowed origin or a hash of "Allow-Origin", "Allow-Methods",
 "Allow-Headers", and "Max-Age".
 
-$HTTP_HOST is replaced in runtime to the HTTP_HOST value in the
-environment given by Plack.
+$HTTP_HOST and $SCRIPT_NAME are replaced in runtime to the HTTP_HOST
+and SCRIPT_NAME values respectively in the environment given by Plack.
 
 =head2 EXPORT
 
@@ -420,8 +420,12 @@ sub service {
             $self->{config_maker}->config($self->{config}) :
             $self->{config};
         $service->{config} = get_config($config, $requested_service);
-        my $host = $service->{env}{HTTP_HOST};
-        $service->{config}{resource} =~ s/\$HTTP_HOST/$host/ if $service->{config}{resource} && $host;
+        if ($service->{config}{resource}) {
+            my $host = $env->{HTTP_HOST};
+            $service->{config}{resource} =~ s/\$HTTP_HOST/$host/ if $host;
+            my $script = $env->{SCRIPT_NAME};
+            $service->{config}{resource} =~ s/\$SCRIPT_NAME/$script/ if $script;
+        }
         return $service;
     }
 
