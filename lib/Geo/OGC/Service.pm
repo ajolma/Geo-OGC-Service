@@ -158,7 +158,13 @@ parameters are
   config, services
 
 config is required and it is a path to a file or a reference to an
-anonymous hash containing the configuration for the services.
+anonymous hash containing the configuration for the services. The top
+level keys are service names. If it is a file, it is expected to be
+JSON. A configuration in a file may use top level Common hash and
+references. A reference is a key,value pair, where the value begins
+with 'ref:/' followed by a top level key name. The Common block is
+cloned and references are solved and cloned into each service
+configuration.
 
 services is a reference to a hash of service names associated with
 names of classes, which will process service requests. The key of the
@@ -309,19 +315,28 @@ sub respond {
 =head3 service
 
 This method does a preliminary interpretation of the request and
-converts it into a service object, which is returned. The contents of
-the configuration are cloned into the service object.
+converts it into a service object, which is returned. 
 
 The returned service object contains
 
-  config => a clone of the configuration for this type of service
+  config => the configuration for this type of service
   env => the PSGI environment
 
 and may contain
 
+  plugin => plugin object
+
   posted => XML::LibXML DOM document element of the posted data
   filter => XML::LibXML DOM document element of the filter
   parameters => hash of rquest parameters obtained from Plack::Request
+
+config is the service specific part of the config given to this
+Geo::OGC::Service object in its constructor, possibly worked to clone
+the Common block and references. The service should treat it strictly
+read-only as it is shared between workers.
+
+plugin is the plugin object that was given to this Geo::OGC::Service
+object in its constructor.
 
 Note: all keys in request parameters are converted to lower case in
 parameters.
@@ -340,8 +355,8 @@ sub service {
     my $service = { 
         env => $env, 
         request => $request,
-        processor => $self->{processor} 
         # will get below:
+        # plugin
         # posted
         # filter
         # parameters
@@ -414,11 +429,14 @@ sub service {
         $service_from_script_name->($env) // ''; 
 
     if (exists $self->{services}{$requested_service}) {
-        bless $service, $self->{services}{$requested_service};
         $service->{service} = $requested_service;
-        my $config = $self->{config_maker} ?
-            $self->{config_maker}->config($self->{config}) :
-            $self->{config};
+        my $class = $self->{services}{$requested_service};
+        if (ref $class) {
+            $service->{plugin} = $class->{plugin};
+            $class = $class->{service};
+        }
+        $service->{plugin} //= $self->{plugin};
+        my $config = $self->{config};
         $service->{config} = get_config($config, $requested_service);
         if ($service->{config}{resource}) {
             my $host = $env->{HTTP_HOST};
@@ -426,7 +444,7 @@ sub service {
             my $script = $env->{SCRIPT_NAME};
             $service->{config}{resource} =~ s/\$SCRIPT_NAME/$script/ if $script;
         }
-        return $service;
+        return bless $service, $class;
     }
 
     error($responder, { exceptionCode => 'InvalidParameterValue',
@@ -435,6 +453,10 @@ sub service {
     return undef;
 }
 
+# the value of the key, whose name is the service
+# may be the config for the service 
+# or it may be the name of the key
+# whose value is the config for the service
 sub get_config {
     my ($config, $service) = @_;
     if (exists $config->{$service}) {
