@@ -53,28 +53,48 @@ the case of RESTful services). The new object contains keys env,
 request, plugin, config, service, and optionally posted, filter, and
 parameters.
 
-=item env The PSGI $env.
+=over
 
-=item request A Plack::Request object constructed from the $env;
+=item env
 
-=item plugin The plugin object given as an argument to
-Geo::OGC::Service in its constructor as a top level attribute or as a
-service specific attribute.
+The PSGI $env.
 
-=item config The constructed configuration for the web service.
+=item request
 
-=item service The name of the requested service.
+A Plack::Request object constructed from the $env;
 
-=parameters A hash made from Plack::Request->parameters (thus removing
-its multi value nature). The keys are all converted to lower case and
-the values are decoded to Perl's internal format assuming they are in
-the encoding defined $request->content_encoding (or UTF-8).
+=item plugin 
 
-=item posted A XML::LibXML documentElement of the POSTed XML. The XML
-is decoded into Perl's internal format.
+The plugin object given as an argument to Geo::OGC::Service in its
+constructor as a top level attribute or as a service specific
+attribute.
 
-=item filter A XML::LibXML documentElement contructed from a filter
-GET parameter. The XML is decoded into Perl's internal format.
+=item config 
+
+The constructed configuration for the web service.
+
+=item service 
+
+The name of the requested service.
+
+=item parameters 
+
+A hash made from Plack::Request->parameters (thus removing its multi
+value nature). The keys are all converted to lower case and the values
+are decoded to Perl's internal format assuming they are in the
+encoding defined $request->content_encoding (or UTF-8).
+
+=item posted 
+
+A XML::LibXML documentElement of the POSTed XML. The XML is decoded
+into Perl's internal format.
+
+=item filter 
+
+A XML::LibXML documentElement contructed from a filter GET
+parameter. The XML is decoded into Perl's internal format.
+
+=back
 
 =head2 SERVICE CONFIGURATION
 
