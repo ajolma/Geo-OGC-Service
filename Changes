@@ -1,3 +1,6 @@
+0.14, Sep 11, 2017
+  * Fix the POD.
+
 0.13, Sep 11, 2017
   * Get the encoding always from the request object.
 
